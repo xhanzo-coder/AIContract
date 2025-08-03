@@ -1,0 +1,164 @@
+{
+  "version": "2.0.0",
+  "source": "project",
+  "metadata": {
+    "version": "2.0.0",
+    "description": "project 级资源注册表",
+    "createdAt": "2025-08-03T06:48:48.717Z",
+    "updatedAt": "2025-08-03T06:48:48.721Z",
+    "resourceCount": 10
+  },
+  "resources": [
+    {
+      "id": "frontend-workflow",
+      "source": "project",
+      "protocol": "execution",
+      "name": "Frontend Workflow 执行模式",
+      "description": "执行模式，定义具体的行为模式",
+      "reference": "@project://.promptx/resource/role/frontend-developer/execution/frontend-workflow.execution.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.718Z",
+        "updatedAt": "2025-08-03T06:48:48.718Z",
+        "scannedAt": "2025-08-03T06:48:48.718Z",
+        "path": "role/frontend-developer/execution/frontend-workflow.execution.md"
+      }
+    },
+    {
+      "id": "frontend-developer",
+      "source": "project",
+      "protocol": "role",
+      "name": "Frontend Developer 角色",
+      "description": "专业角色，提供特定领域的专业能力",
+      "reference": "@project://.promptx/resource/role/frontend-developer/frontend-developer.role.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.718Z",
+        "updatedAt": "2025-08-03T06:48:48.718Z",
+        "scannedAt": "2025-08-03T06:48:48.718Z",
+        "path": "role/frontend-developer/frontend-developer.role.md"
+      }
+    },
+    {
+      "id": "frontend-thinking",
+      "source": "project",
+      "protocol": "thought",
+      "name": "Frontend Thinking 思维模式",
+      "description": "思维模式，指导AI的思考方式",
+      "reference": "@project://.promptx/resource/role/frontend-developer/thought/frontend-thinking.thought.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.719Z",
+        "updatedAt": "2025-08-03T06:48:48.719Z",
+        "scannedAt": "2025-08-03T06:48:48.719Z",
+        "path": "role/frontend-developer/thought/frontend-thinking.thought.md"
+      }
+    },
+    {
+      "id": "product-methodology",
+      "source": "project",
+      "protocol": "execution",
+      "name": "Product Methodology 执行模式",
+      "description": "执行模式，定义具体的行为模式",
+      "reference": "@project://.promptx/resource/role/product-manager/execution/product-methodology.execution.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.719Z",
+        "updatedAt": "2025-08-03T06:48:48.719Z",
+        "scannedAt": "2025-08-03T06:48:48.719Z",
+        "path": "role/product-manager/execution/product-methodology.execution.md"
+      }
+    },
+    {
+      "id": "product-manager",
+      "source": "project",
+      "protocol": "role",
+      "name": "Product Manager 角色",
+      "description": "专业角色，提供特定领域的专业能力",
+      "reference": "@project://.promptx/resource/role/product-manager/product-manager.role.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.720Z",
+        "updatedAt": "2025-08-03T06:48:48.720Z",
+        "scannedAt": "2025-08-03T06:48:48.720Z",
+        "path": "role/product-manager/product-manager.role.md"
+      }
+    },
+    {
+      "id": "python-backend-developer",
+      "source": "project",
+      "protocol": "role",
+      "name": "Python Backend Developer 角色",
+      "description": "专业角色，提供特定领域的专业能力",
+      "reference": "@project://.promptx/resource/role/python-backend-developer/python-backend-developer.role.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.720Z",
+        "updatedAt": "2025-08-03T06:48:48.720Z",
+        "scannedAt": "2025-08-03T06:48:48.720Z",
+        "path": "role/python-backend-developer/python-backend-developer.role.md"
+      }
+    },
+    {
+      "id": "backend-thinking",
+      "source": "project",
+      "protocol": "thought",
+      "name": "Backend Thinking 思维模式",
+      "description": "思维模式，指导AI的思考方式",
+      "reference": "@project://.promptx/resource/role/python-backend-developer/thought/backend-thinking.thought.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.720Z",
+        "updatedAt": "2025-08-03T06:48:48.720Z",
+        "scannedAt": "2025-08-03T06:48:48.720Z",
+        "path": "role/python-backend-developer/thought/backend-thinking.thought.md"
+      }
+    },
+    {
+      "id": "design-workflow",
+      "source": "project",
+      "protocol": "execution",
+      "name": "Design Workflow 执行模式",
+      "description": "执行模式，定义具体的行为模式",
+      "reference": "@project://.promptx/resource/role/ui-ux-designer/execution/design-workflow.execution.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.721Z",
+        "updatedAt": "2025-08-03T06:48:48.721Z",
+        "scannedAt": "2025-08-03T06:48:48.721Z",
+        "path": "role/ui-ux-designer/execution/design-workflow.execution.md"
+      }
+    },
+    {
+      "id": "design-thinking",
+      "source": "project",
+      "protocol": "thought",
+      "name": "Design Thinking 思维模式",
+      "description": "思维模式，指导AI的思考方式",
+      "reference": "@project://.promptx/resource/role/ui-ux-designer/thought/design-thinking.thought.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.721Z",
+        "updatedAt": "2025-08-03T06:48:48.721Z",
+        "scannedAt": "2025-08-03T06:48:48.721Z",
+        "path": "role/ui-ux-designer/thought/design-thinking.thought.md"
+      }
+    },
+    {
+      "id": "ui-ux-designer",
+      "source": "project",
+      "protocol": "role",
+      "name": "Ui Ux Designer 角色",
+      "description": "专业角色，提供特定领域的专业能力",
+      "reference": "@project://.promptx/resource/role/ui-ux-designer/ui-ux-designer.role.md",
+      "metadata": {
+        "createdAt": "2025-08-03T06:48:48.721Z",
+        "updatedAt": "2025-08-03T06:48:48.721Z",
+        "scannedAt": "2025-08-03T06:48:48.721Z",
+        "path": "role/ui-ux-designer/ui-ux-designer.role.md"
+      }
+    }
+  ],
+  "stats": {
+    "totalResources": 10,
+    "byProtocol": {
+      "execution": 3,
+      "role": 4,
+      "thought": 3
+    },
+    "bySource": {
+      "project": 10
+    }
+  }
+}

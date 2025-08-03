@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<memory>
+  <item id="mem_1754147721675_bwaezv6r0" time="2025/08/02 23:15">
+    <content>
+      HTML预览接口前端集成完成：
+      1. 在api.ts中添加了getHtmlContent接口，调用Alex Chen开发的/v1/contracts/{id}/html-content端点
+      2. 更新了Search组件的handlePreviewDocument函数，优先尝试获取HTML格式内容，失败时回退到原始文本
+      3. 在预览模态框中添加了HTML内容渲染支持，使用dangerouslySetInnerHTML安全渲染HTML
+      4. 实现了智能内容类型检测：图片直接显示、HTML内容渲染、纯文本预格式化显示
+      5. 前端服务器运行在http://localhost:3000/，用户可以在合同列表中点击预览按钮查看HTML格式的合同内容
+      6. 集成了完整的错误处理机制，包括OCR未完成、文件不存在等情况的友好提示
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1754150256692_m06ircrfg" time="2025/08/02 23:57">
+    <content>
+      HTML预览接口数据结构问题修复：
+      问题：前端显示&quot;无法获取文件内容&quot;，但直接访问API有返回结果
+      原因：后端API返回的数据结构是 {success: true, message: &quot;...&quot;, data: {html_content: &quot;...&quot;, content_type: &quot;...&quot;}}，但前端代码错误地访问了 htmlResponse.html_content 而不是 htmlResponse.data.html_content
+      修复：更新前端代码正确访问 htmlResponse.data.html_content
+      测试：修复后HTML预览功能正常工作，可以正确显示合同的HTML格式内容
+    </content>
+    <tags>#其他</tags>
+  </item>
+</memory>

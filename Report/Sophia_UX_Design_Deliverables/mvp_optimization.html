@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MVP优化设计方案 - 合约档案智能检索系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1a202c;
+            background: #f7fafc;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .section h2 {
+            color: #2d3748;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .section h3 {
+            color: #4a5568;
+            font-size: 1.3rem;
+            margin: 25px 0 15px 0;
+        }
+        
+        .mvp-strategy {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .strategy-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .strategy-card.recommended {
+            border-color: #48bb78;
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+        }
+        
+        .strategy-card h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .pros-cons {
+            margin-top: 15px;
+        }
+        
+        .pros-cons h5 {
+            color: #48bb78;
+            margin-bottom: 8px;
+        }
+        
+        .pros-cons.cons h5 {
+            color: #f56565;
+        }
+        
+        .pros-cons ul {
+            padding-left: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .page-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .page-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .page-card.mvp {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #f7faff 0%, #e6f3ff 100%);
+        }
+        
+        .page-card.future {
+            border-color: #cbd5e0;
+            background: #f8fafc;
+            opacity: 0.8;
+        }
+        
+        .page-card h4 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .priority-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .priority-high {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        
+        .priority-medium {
+            background: #feebc8;
+            color: #dd6b20;
+        }
+        
+        .priority-low {
+            background: #e6fffa;
+            color: #319795;
+        }
+        
+        .feature-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .comparison-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .comparison-card h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .status-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .status-mvp {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .status-future {
+            background: #cbd5e0;
+            color: #4a5568;
+        }
+        
+        .status-remove {
+            background: #f56565;
+            color: white;
+        }
+        
+        .wireframe-container {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 20px 0;
+            color: white;
+        }
+        
+        .wireframe {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            color: #2d3748;
+            border: 2px dashed #cbd5e0;
+        }
+        
+        .wireframe h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .wireframe-section {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .search-demo {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+        
+        .search-input {
+            background: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 20px;
+            width: 100%;
+            font-size: 1.1rem;
+            margin: 10px 0;
+        }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #fef5e7 0%, #fed7aa 100%);
+            border: 1px solid #f6ad55;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .highlight-box h4 {
+            color: #c05621;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%);
+            border: 1px solid #4fd1c7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .info-box h4 {
+            color: #234e52;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .mvp-strategy, .feature-comparison {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 MVP优化设计方案</h1>
+            <p>基于用户反馈的合约档案智能检索系统重新设计</p>
+            <p style="margin-top: 10px; font-size: 1.1rem; opacity: 0.9;">
+                设计师：Sophia | 优化版本：v2.0
+            </p>
+        </div>
+
+        <!-- MVP策略选择 -->
+        <div class="section">
+            <h2>🚀 MVP开发策略</h2>
+            
+            <div class="mvp-strategy">
+                <div class="strategy-card">
+                    <h4>方案一：功能简化设计</h4>
+                    <p>直接设计简化版本，只包含核心功能</p>
+                    
+                    <div class="pros-cons">
+                        <h5>✅ 优点</h5>
+                        <ul>
+                            <li>开发周期短</li>
+                            <li>资源投入少</li>
+                            <li>快速上线验证</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="pros-cons cons">
+                        <h5>❌ 缺点</h5>
+                        <ul>
+                            <li>设计缺乏前瞻性</li>
+                            <li>后期扩展困难</li>
+                            <li>用户体验受限</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="strategy-card recommended">
+                    <h4>方案二：完整设计+分阶段实现 ⭐</h4>
+                    <p>设计完整方案，MVP只实现核心页面</p>
+                    
+                    <div class="pros-cons">
+                        <h5>✅ 优点</h5>
+                        <ul>
+                            <li>设计具有前瞻性</li>
+                            <li>便于后期扩展</li>
+                            <li>保证用户体验一致性</li>
+                            <li>开发团队有明确目标</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="pros-cons cons">
+                        <h5>⚠️ 注意</h5>
+                        <ul>
+                            <li>需要明确MVP边界</li>
+                            <li>避免过度设计</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <h4>💡 推荐策略</h4>
+                <p>采用<strong>方案二</strong>：设计完整的用户体验，但在MVP阶段只实现核心功能页面。这样既保证了设计的完整性和一致性，又能快速验证核心价值。</p>
+            </div>
+        </div>
+
+        <!-- 功能重新定位 -->
+        <div class="section">
+            <h2>🎯 系统功能重新定位</h2>
+            
+            <div class="info-box">
+                <h4>📋 系统定位明确</h4>
+                <p><strong>合约档案智能检索系统</strong> = 文档上传 + 智能搜索 + 问答平台</p>
+                <p>核心价值：帮助用户快速找到和理解合约文档内容</p>
+            </div>
+
+            <div class="feature-comparison">
+                <div class="comparison-card">
+                    <h4>🚀 MVP核心功能</h4>
+                    <ul class="feature-list">
+                        <li>
+                            <span class="status-icon status-mvp">1</span>
+                            文档上传管理
+                        </li>
+                        <li>
+                            <span class="status-icon status-mvp">2</span>
+                            智能搜索问答
+                        </li>
+                        <li>
+                            <span class="status-icon status-mvp">3</span>
+                            搜索结果展示
+                        </li>
+                        <li>
+                            <span class="status-icon status-mvp">4</span>
+                            基础系统设置
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="comparison-card">
+                    <h4>📈 未来扩展功能</h4>
+                    <ul class="feature-list">
+                        <li>
+                            <span class="status-icon status-future">F</span>
+                            高级数据分析
+                        </li>
+                        <li>
+                            <span class="status-icon status-future">F</span>
+                            用户权限管理
+                        </li>
+                        <li>
+                            <span class="status-icon status-future">F</span>
+                            API接口管理
+                        </li>
+                        <li>
+                            <span class="status-icon status-future">F</span>
+                            批量操作功能
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="comparison-card">
+                    <h4>❌ 移除功能</h4>
+                    <ul class="feature-list">
+                        <li>
+                            <span class="status-icon status-remove">X</span>
+                            合约签署功能
+                        </li>
+                        <li>
+                            <span class="status-icon status-remove">X</span>
+                            月度趋势分析
+                        </li>
+                        <li>
+                            <span class="status-icon status-remove">X</span>
+                            复杂工作流程
+                        </li>
+                        <li>
+                            <span class="status-icon status-remove">X</span>
+                            多角色权限
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索功能优化 -->
+        <div class="section">
+            <h2>🔍 搜索功能重新设计</h2>
+            
+            <h3>问题解决：首页搜索 vs 智能搜索</h3>
+            
+            <div class="search-demo">
+                <h4>🏠 首页搜索：快速入口</h4>
+                <input type="text" class="search-input" placeholder="🔍 快速搜索：输入关键词或问题..." readonly>
+                <p style="margin-top: 10px; opacity: 0.9;">
+                    • 简单搜索框，支持自然语言<br>
+                    • 显示热门搜索建议<br>
+                    • 直接跳转到搜索结果页
+                </p>
+            </div>
+            
+            <div class="wireframe-container">
+                <h4>🎯 智能搜索页面：专业搜索</h4>
+                <div class="wireframe">
+                    <div class="wireframe-section">
+                        <strong>高级搜索区域</strong>
+                        <p>• 自然语言搜索框</p>
+                        <p>• 文档类型筛选</p>
+                        <p>• 时间范围选择</p>
+                        <p>• 关键词标签</p>
+                    </div>
+                    <div class="wireframe-section">
+                        <strong>搜索历史</strong>
+                        <p>• 最近搜索记录</p>
+                        <p>• 常用搜索保存</p>
+                    </div>
+                    <div class="wireframe-section">
+                        <strong>搜索结果</strong>
+                        <p>• 相关度排序</p>
+                        <p>• 文档预览</p>
+                        <p>• 智能问答</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <h4>💡 功能区分策略</h4>
+                <p><strong>首页搜索</strong>：快速入口，类似Google首页，简单直接</p>
+                <p><strong>智能搜索页</strong>：专业工具，提供高级筛选、历史记录、详细结果</p>
+            </div>
+        </div>
+
+        <!-- 数据统计重新设计 -->
+        <div class="section">
+            <h2>📊 数据统计页面优化</h2>
+            
+            <h3>从"合约分析"转向"使用统计"</h3>
+            
+            <div class="page-grid">
+                <div class="page-card mvp">
+                    <h4>
+                        📈 文档统计
+                        <span class="priority-badge priority-high">MVP</span>
+                    </h4>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>文档上传数量趋势</li>
+                        <li>文档类型分布</li>
+                        <li>存储空间使用情况</li>
+                        <li>文档处理状态</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card mvp">
+                    <h4>
+                        🔍 搜索统计
+                        <span class="priority-badge priority-high">MVP</span>
+                    </h4>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>搜索查询次数</li>
+                        <li>热门搜索关键词</li>
+                        <li>搜索成功率</li>
+                        <li>用户搜索行为</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card future">
+                    <h4>
+                        ⚡ 系统性能
+                        <span class="priority-badge priority-medium">未来</span>
+                    </h4>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>响应时间统计</li>
+                        <li>系统负载监控</li>
+                        <li>错误率分析</li>
+                        <li>用户活跃度</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card future">
+                    <h4>
+                        👥 用户分析
+                        <span class="priority-badge priority-low">未来</span>
+                    </h4>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>用户使用习惯</li>
+                        <li>功能使用频率</li>
+                        <li>用户满意度</li>
+                        <li>反馈统计</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4>🎯 MVP阶段建议</h4>
+                <p>保留数据统计页面，但聚焦于<strong>文档管理</strong>和<strong>搜索使用</strong>统计，这些数据对优化系统很有价值。移除与合约签署相关的业务指标。</p>
+            </div>
+        </div>
+
+        <!-- MVP页面规划 -->
+        <div class="section">
+            <h2>📱 MVP页面实现规划</h2>
+            
+            <div class="page-grid">
+                <div class="page-card mvp">
+                    <h4>
+                        🏠 首页
+                        <span class="priority-badge priority-high">第1周</span>
+                    </h4>
+                    <p><strong>核心功能：</strong></p>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>快速搜索入口</li>
+                        <li>最近上传文档</li>
+                        <li>基础统计概览</li>
+                        <li>快捷操作按钮</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card mvp">
+                    <h4>
+                        📤 文档上传
+                        <span class="priority-badge priority-high">第1周</span>
+                    </h4>
+                    <p><strong>核心功能：</strong></p>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>拖拽上传界面</li>
+                        <li>上传进度显示</li>
+                        <li>文档列表管理</li>
+                        <li>基础文档操作</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card mvp">
+                    <h4>
+                        🔍 智能搜索
+                        <span class="priority-badge priority-high">第2周</span>
+                    </h4>
+                    <p><strong>核心功能：</strong></p>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>自然语言搜索</li>
+                        <li>搜索结果展示</li>
+                        <li>文档预览</li>
+                        <li>搜索历史</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card mvp">
+                    <h4>
+                        📊 使用统计
+                        <span class="priority-badge priority-medium">第3周</span>
+                    </h4>
+                    <p><strong>核心功能：</strong></p>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>文档统计图表</li>
+                        <li>搜索统计图表</li>
+                        <li>基础数据展示</li>
+                        <li>简单筛选功能</li>
+                    </ul>
+                </div>
+                
+                <div class="page-card mvp">
+                    <h4>
+                        ⚙️ 系统设置
+                        <span class="priority-badge priority-medium">第3周</span>
+                    </h4>
+                    <p><strong>核心功能：</strong></p>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>基础系统配置</li>
+                        <li>文档处理设置</li>
+                        <li>搜索参数调整</li>
+                        <li>系统信息展示</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实施建议 -->
+        <div class="section">
+            <h2>🎯 实施建议</h2>
+            
+            <div class="highlight-box">
+                <h4>📋 MVP开发优先级</h4>
+                <ol style="margin-top: 10px; padding-left: 20px;">
+                    <li><strong>第1周</strong>：首页 + 文档上传（核心价值验证）</li>
+                    <li><strong>第2周</strong>：智能搜索（主要功能）</li>
+                    <li><strong>第3周</strong>：统计页面 + 系统设置（完善体验）</li>
+                </ol>
+            </div>
+            
+            <div class="info-box">
+                <h4>🎨 设计交付策略</h4>
+                <p>我将更新现有的设计文档，重点优化：</p>
+                <ul style="margin-top: 10px; padding-left: 20px;">
+                    <li>简化首页设计，突出搜索功能</li>
+                    <li>重新设计数据统计页面</li>
+                    <li>明确搜索功能的层次结构</li>
+                    <li>提供MVP版本的具体实现指导</li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="text-align: center; padding: 30px; color: #718096; border-top: 1px solid #e2e8f0; margin-top: 40px;">
+            <p>🎨 MVP优化方案：Sophia UX Design | 📅 基于用户反馈优化</p>
+            <p><em>"简约而不简单，MVP也要有好的用户体验"</em></p>
+        </div>
+    </div>
+</body>
+</html>
