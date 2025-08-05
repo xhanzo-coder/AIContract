@@ -41,6 +41,13 @@ class Settings(BaseModel):
     
     # CORS配置
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:8501", "http://127.0.0.1:8501"]
+    
+    # Elasticsearch配置
+    ELASTICSEARCH_HOST: str = os.getenv("ELASTICSEARCH_HOST", "localhost")
+    ELASTICSEARCH_PORT: int = int(os.getenv("ELASTICSEARCH_PORT", "9200"))
+    ELASTICSEARCH_USER: str = os.getenv("ELASTICSEARCH_USER", "")
+    ELASTICSEARCH_PASSWORD: str = os.getenv("ELASTICSEARCH_PASSWORD", "")
+    ELASTICSEARCH_ENABLED: bool = os.getenv("ELASTICSEARCH_ENABLED", "True").lower() == "true"
 
 # 创建全局配置实例
 settings = Settings()

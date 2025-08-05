@@ -30,6 +30,7 @@ class ContractResponse(ContractBase):
     """合同响应模式"""
     id: int = Field(..., description="合同ID")
     file_name: str = Field(..., description="文件名")
+    file_path: Optional[str] = Field(None, description="文件路径")
     file_size: Optional[int] = Field(None, description="文件大小")
     file_format: Optional[str] = Field(None, description="文件格式")
     upload_time: datetime = Field(..., description="上传时间")
@@ -89,3 +90,79 @@ class ErrorResponse(BaseModel):
     message: str = Field(..., description="错误消息")
     error_code: Optional[str] = Field(None, description="错误代码")
     details: Optional[Any] = Field(None, description="错误详情")
+
+# 内容分块相关模式
+class ChunkMetadata(BaseModel):
+    """分块元数据模式"""
+    chunk_index: int = Field(..., description="分块索引")
+    total_chunks: int = Field(..., description="总分块数")
+    chunk_length: int = Field(..., description="分块长度")
+    has_table: bool = Field(..., description="是否包含表格")
+    has_title: bool = Field(..., description="是否包含标题")
+    paragraph_count: int = Field(..., description="段落数量")
+    content_type: str = Field(..., description="内容类型")
+
+class ContractChunk(BaseModel):
+    """合同分块模式"""
+    id: int = Field(..., description="分块ID")
+    chunk_index: int = Field(..., description="分块索引")
+    content_text: str = Field(..., description="分块内容")
+    chunk_type: str = Field(..., description="分块类型")
+    chunk_size: int = Field(..., description="分块大小")
+    chunk_metadata: Optional[dict] = Field(None, description="分块元数据")
+    start_position: Optional[int] = Field(None, description="起始位置")
+    end_position: Optional[int] = Field(None, description="结束位置")
+    vector_status: Optional[str] = Field(None, description="向量状态")
+    created_at: Optional[datetime] = Field(None, description="创建时间")
+
+    class Config:
+        from_attributes = True
+
+class ContractChunkHighlighted(ContractChunk):
+    """带高亮的合同分块模式"""
+    highlighted_text: Optional[str] = Field(None, description="高亮文本")
+    relevance_score: Optional[float] = Field(None, description="相关性分数")
+
+class PaginationInfo(BaseModel):
+    """分页信息模式"""
+    page: int = Field(..., description="当前页码")
+    size: int = Field(..., description="每页大小")
+    total: int = Field(..., description="总记录数")
+    total_pages: int = Field(..., description="总页数")
+    has_next: bool = Field(..., description="是否有下一页")
+    has_prev: bool = Field(..., description="是否有上一页")
+
+class ChunkListResponse(BaseModel):
+    """分块列表响应模式"""
+    chunks: List[ContractChunk] = Field(..., description="分块列表")
+    pagination: PaginationInfo = Field(..., description="分页信息")
+
+class ChunkSearchResponse(BaseModel):
+    """分块搜索响应模式"""
+    chunks: List[ContractChunkHighlighted] = Field(..., description="搜索结果分块")
+    pagination: PaginationInfo = Field(..., description="分页信息")
+    query: str = Field(..., description="搜索关键词")
+
+class ContentStatusResponse(BaseModel):
+    """内容处理状态响应模式"""
+    status: str = Field(..., description="处理状态")
+    message: str = Field(..., description="状态消息")
+    contract_id: int = Field(..., description="合同ID")
+    chunk_count: Optional[int] = Field(None, description="分块数量")
+    ocr_status: Optional[str] = Field(None, description="OCR状态")
+    last_processed: Optional[datetime] = Field(None, description="最后处理时间")
+
+class ContentProcessResponse(BaseModel):
+    """内容处理响应模式"""
+    status: str = Field(..., description="处理状态")
+    message: str = Field(..., description="处理消息")
+    contract_id: int = Field(..., description="合同ID")
+    chunk_count: Optional[int] = Field(None, description="生成的分块数量")
+    processed_at: Optional[str] = Field(None, description="处理时间")
+
+class ChunkPreview(BaseModel):
+    """分块预览模式"""
+    chunk_index: int = Field(..., description="分块索引")
+    content_preview: str = Field(..., description="内容预览")
+    chunk_size: int = Field(..., description="分块大小")
+    metadata: dict = Field(..., description="元数据")

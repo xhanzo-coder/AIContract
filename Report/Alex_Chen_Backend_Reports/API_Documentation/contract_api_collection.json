@@ -1,9 +1,9 @@
 {
   "info": {
-    "name": "合同档案管理API - GLM-4.1V版本",
-    "description": "基于SiliconFlow GLM-4.1V视觉模型的合同档案管理系统API测试集合",
+    "name": "合同档案管理API - 完整版本",
+    "description": "合同档案管理系统API测试集合，包含OCR处理、内容分块、Elasticsearch搜索等完整功能",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "1.0.0"
+    "version": "3.0.0"
   },
   "variable": [
     {
@@ -300,7 +300,496 @@
       }
     },
     {
-      "name": "7. 删除合同 (谨慎使用)",
+      "name": "7. 获取内容状态",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has content status\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('contract_id');",
+              "    pm.expect(jsonData).to.have.property('has_text_content');",
+              "    pm.expect(jsonData).to.have.property('chunk_count');",
+              "    pm.expect(jsonData).to.have.property('text_file_exists');",
+              "});",
+              "",
+              "pm.test(\"Contract ID matches\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    var expectedId = parseInt(pm.collectionVariables.get(\"contract_id\"));",
+              "    pm.expect(jsonData.contract_id).to.eql(expectedId);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/content/status",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "content", "status"]
+        },
+        "description": "获取合同内容处理状态"
+      }
+    },
+    {
+      "name": "8. 处理内容分块",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Content processing successful\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('message');",
+              "    pm.expect(jsonData).to.have.property('contract_id');",
+              "    pm.expect(jsonData).to.have.property('chunks_created');",
+              "    pm.expect(jsonData.chunks_created).to.be.a('number');",
+              "    pm.expect(jsonData.chunks_created).to.be.above(0);",
+              "});",
+              "",
+              "pm.test(\"Processing details provided\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.include('处理完成');",
+              "    console.log('Chunks created: ' + jsonData.chunks_created);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/content/process",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "content", "process"]
+        },
+        "description": "处理合同内容并生成分块"
+      }
+    },
+    {
+      "name": "9. 获取分块列表",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has chunks array\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('chunks');",
+              "    pm.expect(jsonData.chunks).to.be.an('array');",
+              "});",
+              "",
+              "pm.test(\"Response has pagination info\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('total');",
+              "    pm.expect(jsonData).to.have.property('page');",
+              "    pm.expect(jsonData).to.have.property('size');",
+              "});",
+              "",
+              "pm.test(\"Chunks have required fields\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.chunks.length > 0) {",
+              "        var chunk = jsonData.chunks[0];",
+              "        pm.expect(chunk).to.have.property('id');",
+              "        pm.expect(chunk).to.have.property('chunk_index');",
+              "        pm.expect(chunk).to.have.property('content_text');",
+              "        pm.expect(chunk).to.have.property('chunk_type');",
+              "        pm.expect(chunk).to.have.property('chunk_size');",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/content/chunks?page=1&size=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "content", "chunks"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "页码"
+            },
+            {
+              "key": "size",
+              "value": "10",
+              "description": "每页大小"
+            }
+          ]
+        },
+        "description": "分页获取合同内容分块列表"
+      }
+    },
+    {
+      "name": "10. 搜索分块",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has chunks array\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('chunks');",
+              "    pm.expect(jsonData.chunks).to.be.an('array');",
+              "});",
+              "",
+              "pm.test(\"Response has search info\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('total');",
+              "    pm.expect(jsonData).to.have.property('page');",
+              "    pm.expect(jsonData).to.have.property('size');",
+              "    pm.expect(jsonData).to.have.property('query');",
+              "});",
+              "",
+              "pm.test(\"Search results relevant\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    console.log('Search query: ' + jsonData.query);",
+              "    console.log('Results found: ' + jsonData.total);",
+              "    if (jsonData.chunks.length > 0) {",
+              "        var chunk = jsonData.chunks[0];",
+              "        pm.expect(chunk).to.have.property('content_text');",
+              "        console.log('First result preview: ' + chunk.content_text.substring(0, 100) + '...');",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/content/search?q=合同&page=1&size=5",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "content", "search"],
+          "query": [
+            {
+              "key": "q",
+              "value": "合同",
+              "description": "搜索关键词"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "页码"
+            },
+            {
+              "key": "size",
+              "value": "5",
+              "description": "每页大小"
+            }
+          ]
+        },
+        "description": "在合同内容分块中搜索关键词"
+      }
+    },
+    {
+      "name": "11. Elasticsearch 健康检查",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Elasticsearch is available\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('elasticsearch_available');",
+              "    pm.expect(jsonData.elasticsearch_available).to.be.true;",
+              "});",
+              "",
+              "pm.test(\"Response has cluster info\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('cluster_name');",
+              "    pm.expect(jsonData).to.have.property('version');",
+              "    console.log('Elasticsearch cluster: ' + jsonData.cluster_name);",
+              "    console.log('Elasticsearch version: ' + jsonData.version);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/elasticsearch/status",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "elasticsearch", "status"]
+        },
+        "description": "检查 Elasticsearch 服务状态和连接"
+      }
+    },
+    {
+      "name": "12. 初始化 Elasticsearch 索引",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Indices created successfully\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('message');",
+              "    pm.expect(jsonData).to.have.property('indices_created');",
+              "    pm.expect(jsonData.indices_created).to.be.an('array');",
+              "    console.log('Created indices: ' + JSON.stringify(jsonData.indices_created));",
+              "});",
+              "",
+              "pm.test(\"Required indices exist\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    var indices = jsonData.indices_created;",
+              "    pm.expect(indices).to.include('contracts');",
+              "    pm.expect(indices).to.include('contract_contents');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/elasticsearch/init",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "elasticsearch", "init"]
+        },
+        "description": "初始化 Elasticsearch 索引（合同索引和内容索引）"
+      }
+    },
+    {
+      "name": "13. 同步合同到 Elasticsearch",
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test(\"Status code is 200\", function () {",
+                "    pm.response.to.have.status(200);",
+                "});",
+                "",
+                "pm.test(\"Sync completed successfully\", function () {",
+                "    var jsonData = pm.response.json();",
+                "    pm.expect(jsonData).to.have.property('message');",
+                "    pm.expect(jsonData).to.have.property('synced_contracts');",
+                "    pm.expect(jsonData).to.have.property('synced_contents');",
+                "    console.log('Synced contracts: ' + jsonData.synced_contracts);",
+                "    console.log('Synced contents: ' + jsonData.synced_contents);",
+                "});",
+                "",
+                "pm.test(\"Sync statistics valid\", function () {",
+                "    var jsonData = pm.response.json();",
+                "    pm.expect(jsonData.synced_contracts).to.be.a('number');",
+                "    pm.expect(jsonData.synced_contents).to.be.a('number');",
+                "    pm.expect(jsonData.synced_contracts).to.be.at.least(0);",
+                "    pm.expect(jsonData.synced_contents).to.be.at.least(0);",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ],
+        "request": {
+          "method": "POST",
+          "header": [],
+          "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/elasticsearch/sync",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "elasticsearch", "sync"]
+        },
+          "description": "将现有合同数据同步到 Elasticsearch 索引"
+        }
+    },
+    {
+      "name": "14. 全局合同搜索",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has search results\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('contracts');",
+              "    pm.expect(jsonData.contracts).to.be.an('array');",
+              "    pm.expect(jsonData).to.have.property('total');",
+              "    pm.expect(jsonData).to.have.property('page');",
+              "    pm.expect(jsonData).to.have.property('size');",
+              "});",
+              "",
+              "pm.test(\"Search metadata valid\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('query');",
+              "    pm.expect(jsonData).to.have.property('took');",
+              "    pm.expect(jsonData.took).to.be.a('number');",
+              "    console.log('Search query: ' + jsonData.query);",
+              "    console.log('Search took: ' + jsonData.took + 'ms');",
+              "    console.log('Total results: ' + jsonData.total);",
+              "});",
+              "",
+              "pm.test(\"Contract results have required fields\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.contracts.length > 0) {",
+              "        var contract = jsonData.contracts[0];",
+              "        pm.expect(contract).to.have.property('id');",
+              "        pm.expect(contract).to.have.property('contract_name');",
+              "        pm.expect(contract).to.have.property('contract_number');",
+              "        pm.expect(contract).to.have.property('score');",
+              "        console.log('First result: ' + contract.contract_name + ' (score: ' + contract.score + ')');",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/elasticsearch/search?q=合同&page=1&size=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "elasticsearch", "search"],
+          "query": [
+            {
+              "key": "q",
+              "value": "合同",
+              "description": "搜索关键词"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "页码"
+            },
+            {
+              "key": "size",
+              "value": "10",
+              "description": "每页大小"
+            }
+          ]
+        },
+        "description": "在所有合同中进行全局搜索"
+      }
+    },
+    {
+      "name": "15. 职业病危害因素搜索示例",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has content results\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('contents');",
+              "    pm.expect(jsonData.contents).to.be.an('array');",
+              "    pm.expect(jsonData).to.have.property('total');",
+              "    pm.expect(jsonData).to.have.property('page');",
+              "    pm.expect(jsonData).to.have.property('size');",
+              "});",
+              "",
+              "pm.test(\"Content search metadata valid\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('query');",
+              "    pm.expect(jsonData).to.have.property('took');",
+              "    pm.expect(jsonData.took).to.be.a('number');",
+              "    console.log('Content search query: ' + jsonData.query);",
+              "    console.log('Content search took: ' + jsonData.took + 'ms');",
+              "    console.log('Total content results: ' + jsonData.total);",
+              "});",
+              "",
+              "pm.test(\"Content results have required fields\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.contents.length > 0) {",
+              "        var content = jsonData.contents[0];",
+              "        pm.expect(content).to.have.property('id');",
+              "        pm.expect(content).to.have.property('contract_id');",
+              "        pm.expect(content).to.have.property('content_text');",
+              "        pm.expect(content).to.have.property('score');",
+              "        pm.expect(content).to.have.property('highlight');",
+              "        console.log('First content result from contract: ' + content.contract_id);",
+              "        console.log('Content preview: ' + content.content_text.substring(0, 100) + '...');",
+              "        if (content.highlight && content.highlight.content_text) {",
+              "            console.log('Highlighted text: ' + content.highlight.content_text[0]);",
+              "        }",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/elasticsearch/search?q=职业病危害因素分类目录&page=1&size=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "elasticsearch", "search"],
+          "query": [
+            {
+              "key": "q",
+              "value": "职业病危害因素分类目录",
+              "description": "搜索关键词"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "页码"
+            },
+            {
+              "key": "size",
+              "value": "10",
+              "description": "每页大小"
+            }
+          ]
+        },
+        "description": "职业病危害因素搜索示例"
+      }
+    },
+    {
+      "name": "16. 删除合同 (谨慎使用)",
       "event": [
         {
           "listen": "test",
@@ -354,9 +843,9 @@
           "console.log('Request to: ' + pm.request.url);",
           "console.log('Method: ' + pm.request.method);",
           "",
-          "// 检查contract_id是否存在（除了健康检查和上传接口）",
+          "// 检查contract_id是否存在（除了健康检查、上传接口和全局搜索接口）",
           "var requestName = pm.info.requestName;",
-          "var needsContractId = ['4. 获取合同详情', '5. 查询OCR状态', '6. 手动触发OCR处理 (GLM-4.1V)', '7. 删除合同 (谨慎使用)'];",
+          "var needsContractId = ['4. 获取合同详情', '5. 查询OCR状态', '6. 手动触发OCR处理 (GLM-4.1V)', '7. 获取内容状态', '8. 处理内容分块', '9. 获取分块列表', '10. 搜索分块', '16. 删除合同 (谨慎使用)'];",
           "",
           "if (needsContractId.includes(requestName)) {",
           "    var contractId = pm.collectionVariables.get('contract_id');",

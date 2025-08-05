@@ -5,19 +5,32 @@ import os
 import asyncio
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pathlib import Path
+import mimetypes
+import urllib.parse
 
 from app.models import get_db
 from app.schemas import (
     BaseResponse, ContractResponse, ContractListResponse, 
-    FileUploadResponse, OCRStatusResponse, ContractCreate, HTMLContentResponse
+    FileUploadResponse, OCRStatusResponse, ContractCreate, HTMLContentResponse,
+    ContentStatusResponse, ContentProcessResponse, ChunkListResponse, ChunkSearchResponse
 )
 from app.crud import contract_crud
 from app.services import file_service, ocr_service
+from app.services.content_service import ContentProcessingService
+from app.services.elasticsearch_service import elasticsearch_service
 from app.config import settings
 
 router = APIRouter(prefix="/api/v1/contracts", tags=["合同管理"])
+
+# 简单测试路由
+@router.get("/simple-test", summary="简单测试路由")
+async def simple_test():
+    """最简单的测试路由"""
+    print("DEBUG: simple_test 被调用")
+    return {"message": "简单测试路由工作正常"}
 
 def extract_contract_info(filename: str) -> tuple[str, str]:
     """从文件名提取合同信息"""
@@ -170,33 +183,89 @@ async def get_contracts(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取合同列表失败: {str(e)}")
 
-@router.get("/{contract_id}", response_model=BaseResponse, summary="获取合同详情")
-async def get_contract(
+# 注意：所有具体路径必须放在通用路径之前，避免路由冲突
+
+@router.get("/{contract_id:int}/test-download", summary="测试下载路由")
+async def test_download_route(contract_id: int):
+    """测试下载路由是否工作"""
+    print(f"DEBUG: test_download_route 被调用，contract_id={contract_id}")
+    return {"message": f"测试下载路由工作正常，合同ID: {contract_id}"}
+
+@router.get("/{contract_id:int}/download", summary="下载合同原始文件")
+async def download_contract_file(
     contract_id: int,
     db: Session = Depends(get_db)
 ):
     """
-    获取指定合同的详细信息
+    下载指定合同的原始文件
     
     - **contract_id**: 合同ID
+    
+    返回原始文件的二进制流，浏览器会自动下载文件
+    
+    错误情况：
+    - 合同不存在：404
+    - 文件不存在或已被删除：404
+    - 文件路径无效：500
     """
+    print(f"DEBUG: download_contract_file 被调用，contract_id={contract_id}")
     try:
+        # 获取合同信息
         contract = contract_crud.get_contract_by_id(db, contract_id)
         if not contract:
             raise HTTPException(status_code=404, detail="合同不存在")
         
-        response_data = ContractResponse.model_validate(contract)
+        # 检查文件路径
+        if not contract.file_path:
+            raise HTTPException(status_code=404, detail="合同文件路径不存在")
         
-        return BaseResponse(
-            success=True,
-            message="获取合同详情成功",
-            data=response_data
+        # 构建完整的文件路径
+        file_full_path = os.path.join(settings.UPLOAD_DIR, contract.file_path)
+        
+        # 检查文件是否存在
+        if not os.path.exists(file_full_path):
+            raise HTTPException(status_code=404, detail="合同文件不存在或已被删除")
+        
+        # 检查是否为文件（而不是目录）
+        if not os.path.isfile(file_full_path):
+            raise HTTPException(status_code=500, detail="文件路径指向的不是有效文件")
+        
+        # 获取文件名（优先使用数据库中的file_name，确保中文显示正确）
+        download_filename = contract.file_name or os.path.basename(file_full_path)
+        
+        # 获取文件的MIME类型
+        mime_type, _ = mimetypes.guess_type(file_full_path)
+        if mime_type is None:
+            # 根据文件扩展名设置默认MIME类型
+            file_ext = Path(file_full_path).suffix.lower()
+            if file_ext == '.pdf':
+                mime_type = 'application/pdf'
+            elif file_ext in ['.doc', '.docx']:
+                mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            elif file_ext in ['.xls', '.xlsx']:
+                mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            else:
+                mime_type = 'application/octet-stream'
+        
+        # URL编码文件名以支持中文文件名
+        encoded_filename = urllib.parse.quote(download_filename.encode('utf-8'))
+        
+        # 返回文件响应
+        return FileResponse(
+            path=file_full_path,
+            media_type=mime_type,
+            filename=download_filename,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache"
+            }
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取合同详情失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"下载文件失败: {str(e)}")
 
 @router.get("/{contract_id}/ocr-status", response_model=BaseResponse, summary="获取OCR处理状态")
 async def get_ocr_status(
@@ -390,3 +459,406 @@ async def delete_contract(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除合同失败: {str(e)}")
+
+# 通用路径必须放在最后，避免拦截具体路径
+@router.get("/{contract_id}", response_model=BaseResponse, summary="获取合同详情")
+async def get_contract(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取指定合同的详细信息
+    
+    - **contract_id**: 合同ID
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 调试信息
+        print(f"DEBUG: contract.file_path = {getattr(contract, 'file_path', 'NOT_FOUND')}")
+        
+        response_data = ContractResponse.model_validate(contract)
+        
+        # 调试信息
+        print(f"DEBUG: response_data.file_path = {getattr(response_data, 'file_path', 'NOT_FOUND')}")
+        
+        return BaseResponse(
+            success=True,
+            message="获取合同详情成功",
+            data=response_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取合同详情失败: {str(e)}")
+
+# ==================== 内容分块处理相关接口 ====================
+
+@router.get("/{contract_id}/content/status")
+async def get_content_status_alias(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """获取合同的内容处理状态（别名路由）"""
+    service = ContentProcessingService()
+    result = service.check_content_status(contract_id, db)
+    
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    
+    return {
+        "success": True,
+        "message": "获取内容状态成功",
+        "data": result
+    }
+
+@router.post("/{contract_id}/content/process")
+async def process_content_alias(
+    contract_id: int,
+    force_reprocess: bool = Query(False, description="是否强制重新处理"),
+    db: Session = Depends(get_db)
+):
+    """处理合同内容分块（别名路由）"""
+    service = ContentProcessingService()
+    result = service.process_contract_content(contract_id, db)
+    
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    
+    return {
+        "success": True,
+        "message": "处理内容分块成功",
+        "data": result
+    }
+
+@router.get("/{contract_id}/content-status", response_model=BaseResponse, summary="获取内容处理状态")
+async def get_content_status(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取合同的内容处理状态（包括OCR和分块状态）
+    
+    - **contract_id**: 合同ID
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 使用内容处理服务检查状态
+        content_service = ContentProcessingService()
+        status_info = await content_service.check_content_status(contract_id)
+        
+        response_data = ContentStatusResponse(
+            status=status_info["status"],
+            message=status_info["message"],
+            contract_id=contract_id,
+            chunk_count=status_info.get("chunk_count"),
+            ocr_status=contract.ocr_status,
+            last_processed=status_info.get("last_processed")
+        )
+        
+        return BaseResponse(
+            success=True,
+            message="获取内容状态成功",
+            data=response_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取内容状态失败: {str(e)}")
+
+@router.post("/{contract_id}/process-content", response_model=BaseResponse, summary="处理合同内容分块")
+async def process_contract_content(
+    contract_id: int,
+    background_tasks: BackgroundTasks,
+    force_reprocess: bool = Query(False, description="是否强制重新处理"),
+    db: Session = Depends(get_db)
+):
+    """
+    处理合同内容分块（基于OCR生成的TXT文件）
+    
+    - **contract_id**: 合同ID
+    - **force_reprocess**: 是否强制重新处理（默认false）
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 检查OCR状态
+        if contract.ocr_status != "completed":
+            if contract.ocr_status == "processing":
+                raise HTTPException(status_code=400, detail="OCR处理正在进行中，请等待OCR完成后再处理内容分块")
+            elif contract.ocr_status == "failed":
+                raise HTTPException(status_code=400, detail="OCR处理失败，无法进行内容分块")
+            else:
+                raise HTTPException(status_code=400, detail="OCR处理未完成，无法进行内容分块")
+        
+        # 检查TXT文件是否存在
+        if not contract.text_content_path:
+            raise HTTPException(status_code=404, detail="TXT内容文件路径不存在")
+        
+        txt_file_path = os.path.join(settings.UPLOAD_DIR, contract.text_content_path)
+        if not os.path.exists(txt_file_path):
+            raise HTTPException(status_code=404, detail="TXT内容文件不存在")
+        
+        # 使用内容处理服务
+        content_service = ContentProcessingService()
+        
+        # 检查是否已经处理过
+        if not force_reprocess:
+            status_info = await content_service.check_content_status(contract_id)
+            if status_info["status"] == "completed":
+                return BaseResponse(
+                    success=True,
+                    message="内容已经处理完成，如需重新处理请设置 force_reprocess=true",
+                    data=ContentProcessResponse(
+                        status="already_completed",
+                        message="内容分块已存在",
+                        contract_id=contract_id,
+                        chunk_count=status_info.get("chunk_count")
+                    )
+                )
+        
+        # 异步处理内容分块
+        async def process_content_background():
+            try:
+                result = await content_service.process_contract_content(contract_id, force_reprocess)
+                print(f"内容分块处理完成: 合同ID={contract_id}, 分块数量={result['chunk_count']}")
+            except Exception as e:
+                print(f"内容分块处理失败: 合同ID={contract_id}, 错误={str(e)}")
+        
+        background_tasks.add_task(process_content_background)
+        
+        return BaseResponse(
+            success=True,
+            message="内容分块处理已开始，请稍后查询处理状态",
+            data=ContentProcessResponse(
+                status="processing",
+                message="内容分块处理已开始",
+                contract_id=contract_id,
+                processed_at=None
+            )
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"启动内容分块处理失败: {str(e)}")
+
+@router.get("/{contract_id}/content/chunks", response_model=BaseResponse, summary="获取合同分块内容")
+async def get_contract_chunks(
+    contract_id: int,
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(10, ge=1, le=100, description="每页大小"),
+    chunk_type: Optional[str] = Query(None, description="分块类型过滤"),
+    db: Session = Depends(get_db)
+):
+    """获取合同分块内容"""
+    service = ContentProcessingService()
+    result = service.get_contract_chunks(contract_id, db, page, size)
+    
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    
+    return {
+        "success": True,
+        "message": "获取分块内容成功",
+        "data": result["data"]
+    }
+
+@router.get("/{contract_id}/content/search")
+async def search_contract_chunks(
+    contract_id: int,
+    q: str = Query(..., description="搜索关键词"),
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(10, ge=1, le=100, description="每页大小"),
+    db: Session = Depends(get_db)
+):
+    """在合同分块中搜索关键词"""
+    service = ContentProcessingService()
+    result = service.search_chunks(contract_id, q, db, page, size)
+    
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    
+    return {
+        "success": True,
+        "message": "搜索分块内容成功",
+        "data": result["data"]
+    }
+
+@router.delete("/{contract_id}/content/chunks", response_model=BaseResponse, summary="删除合同分块内容")
+async def delete_contract_chunks(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    删除指定合同的所有分块内容
+    
+    - **contract_id**: 合同ID
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 使用内容处理服务删除分块
+        content_service = ContentProcessingService()
+        deleted_count = await content_service.delete_contract_chunks(contract_id)
+        
+        return BaseResponse(
+            success=True,
+            message=f"成功删除 {deleted_count} 个分块",
+            data={"contract_id": contract_id, "deleted_count": deleted_count}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除分块内容失败: {str(e)}")
+
+# Elasticsearch 相关API端点
+
+@router.get("/elasticsearch/status", response_model=BaseResponse, summary="检查Elasticsearch状态")
+async def check_elasticsearch_status():
+    """
+    检查Elasticsearch服务状态
+    """
+    try:
+        is_available = elasticsearch_service.is_available()
+        
+        if is_available:
+            # 获取集群信息
+            cluster_info = elasticsearch_service.client.info()
+            return BaseResponse(
+                success=True,
+                message="Elasticsearch服务正常",
+                data={
+                    "status": "available",
+                    "cluster_name": cluster_info.get("cluster_name"),
+                    "version": cluster_info.get("version", {}).get("number"),
+                    "host": f"{elasticsearch_service.host}:{elasticsearch_service.port}"
+                }
+            )
+        else:
+            return BaseResponse(
+                success=False,
+                message="Elasticsearch服务不可用",
+                data={
+                    "status": "unavailable",
+                    "host": f"{elasticsearch_service.host}:{elasticsearch_service.port}"
+                }
+            )
+            
+    except Exception as e:
+        return BaseResponse(
+            success=False,
+            message=f"检查Elasticsearch状态失败: {str(e)}",
+            data={"status": "error", "error": str(e)}
+        )
+
+@router.post("/elasticsearch/init", response_model=BaseResponse, summary="初始化Elasticsearch索引")
+async def init_elasticsearch_indices():
+    """
+    初始化Elasticsearch索引（创建contracts和contract_contents索引）
+    """
+    try:
+        if not elasticsearch_service.is_available():
+            raise HTTPException(status_code=503, detail="Elasticsearch服务不可用")
+        
+        # 创建索引
+        contracts_created = elasticsearch_service.create_contracts_index()
+        contents_created = elasticsearch_service.create_contract_contents_index()
+        
+        return BaseResponse(
+            success=True,
+            message="Elasticsearch索引初始化完成",
+            data={
+                "contracts_index_created": contracts_created,
+                "contents_index_created": contents_created
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"初始化Elasticsearch索引失败: {str(e)}")
+
+@router.post("/{contract_id}/elasticsearch/sync", response_model=BaseResponse, summary="同步合同数据到Elasticsearch")
+async def sync_contract_to_elasticsearch(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    将指定合同的数据同步到Elasticsearch
+    
+    - **contract_id**: 合同ID
+    """
+    try:
+        if not elasticsearch_service.is_available():
+            raise HTTPException(status_code=503, detail="Elasticsearch服务不可用")
+        
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 使用内容处理服务同步数据
+        content_service = ContentProcessingService()
+        result = content_service.sync_to_elasticsearch(contract_id, db)
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=500, detail=result["message"])
+        
+        return BaseResponse(
+            success=True,
+            message="同步到Elasticsearch成功",
+            data=result
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"同步到Elasticsearch失败: {str(e)}")
+
+@router.get("/elasticsearch/search", response_model=BaseResponse, summary="使用Elasticsearch搜索合同内容")
+async def elasticsearch_search_contracts(
+    q: str = Query(..., description="搜索关键词"),
+    contract_id: Optional[int] = Query(None, description="限制在特定合同中搜索"),
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(10, ge=1, le=100, description="每页大小"),
+    db: Session = Depends(get_db)
+):
+    """
+    使用Elasticsearch搜索合同内容
+    
+    - **q**: 搜索关键词
+    - **contract_id**: 可选，限制在特定合同中搜索
+    - **page**: 页码
+    - **size**: 每页大小
+    """
+    try:
+        if not elasticsearch_service.is_available():
+            raise HTTPException(status_code=503, detail="Elasticsearch服务不可用，请使用基础搜索功能")
+        
+        # 使用内容处理服务进行搜索
+        content_service = ContentProcessingService()
+        result = content_service.search_chunks(contract_id, q, db, page, size)
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=500, detail=result["message"])
+        
+        return BaseResponse(
+            success=True,
+            message="Elasticsearch搜索完成",
+            data=result["data"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Elasticsearch搜索失败: {str(e)}")

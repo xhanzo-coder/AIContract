@@ -46,3 +46,12 @@ flake8==6.1.0
 # Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+
+# Search and NLP
+elasticsearch==8.11.0
+jieba==0.42.1
+elasticsearch-dsl==8.11.0
+
+# LangChain for document processing
+langchain==0.0.350
+langchain-text-splitters==0.0.1

@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能文档搜索 - 合同档案管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/antd@5.12.8/dist/reset.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@ant-design/icons@5.2.6/lib/index.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+            background: #f7fafc;
+            color: #262626;
+            line-height: 1.5715;
+        }
+
+        /* 顶部导航栏 */
+        .header {
+            background: #001529;
+            color: white;
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .header .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .header .nav-menu {
+            display: flex;
+            gap: 32px;
+        }
+
+        .header .nav-item {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            padding: 8px 0;
+            transition: color 0.3s;
+        }
+
+        .header .nav-item:hover,
+        .header .nav-item.active {
+            color: #1890ff;
+        }
+
+        /* 主容器 */
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+            min-height: calc(100vh - 64px);
+        }
+
+        /* 搜索卡片 */
+        .search-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e8e8e8;
+            margin-bottom: 24px;
+        }
+
+        .search-card-header {
+            padding: 24px 24px 0;
+        }
+
+        .search-card-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #262626;
+            margin-bottom: 8px;
+        }
+
+        .search-card-description {
+            color: #8c8c8c;
+            margin-bottom: 24px;
+        }
+
+        /* 搜索标签页 */
+        .search-tabs {
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            margin: 0 24px;
+        }
+
+        .search-tab {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #8c8c8c;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .search-tab.active {
+            color: #1890ff;
+            border-bottom-color: #1890ff;
+        }
+
+        .search-tab:hover {
+            color: #1890ff;
+        }
+
+        /* 搜索内容区域 */
+        .search-content {
+            padding: 24px;
+        }
+
+        /* 搜索框容器 */
+        .search-box {
+            margin-bottom: 24px;
+        }
+
+        .search-input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .search-input {
+            flex: 1;
+            height: 40px;
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .search-btn {
+            height: 40px;
+            padding: 0 16px;
+            background: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+
+        .search-btn:hover {
+            background: #40a9ff;
+        }
+
+        .filter-btn {
+            height: 40px;
+            padding: 0 16px;
+            background: white;
+            color: #1890ff;
+            border: 1px solid #1890ff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .filter-btn:hover {
+            background: #f0f8ff;
+        }
+
+        /* 示例查询 */
+        .example-queries {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .example-tag {
+            padding: 4px 8px;
+            background: #f0f8ff;
+            color: #1890ff;
+            border: 1px solid #b3d8ff;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .example-tag:hover {
+            background: #e6f4ff;
+            border-color: #91caff;
+        }
+
+        /* 结果区域 */
+        .results-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .results-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .results-count {
+            font-weight: 600;
+            color: #262626;
+        }
+
+        .sort-btn {
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #8c8c8c;
+            transition: all 0.3s;
+        }
+
+        .sort-btn:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        /* 内容和预览布局 */
+        .content-with-preview {
+            display: flex;
+            height: 600px;
+        }
+
+        .file-list-container {
+            flex: 1;
+            overflow-y: auto;
+            border-right: 1px solid #f0f0f0;
+        }
+
+        .file-list-container.with-preview {
+            width: 50%;
+        }
+
+        /* 文档列表项 */
+        .document-item {
+            padding: 16px 24px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .document-item:hover {
+            background: #fafafa;
+        }
+
+        .document-item.selected {
+            background: #e6f4ff;
+            border-left: 3px solid #1890ff;
+        }
+
+        .document-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .file-icon {
+            width: 32px;
+            height: 32px;
+            background: #1890ff;
+            color: white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .document-title {
+            font-weight: 600;
+            color: #262626;
+            flex: 1;
+        }
+
+        .document-tags {
+            display: flex;
+            gap: 4px;
+        }
+
+        .tag {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .tag.blue {
+            background: #e6f4ff;
+            color: #1890ff;
+            border: 1px solid #b3d8ff;
+        }
+
+        .tag.green {
+            background: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+
+        .tag.orange {
+            background: #fff7e6;
+            color: #fa8c16;
+            border: 1px solid #ffd591;
+        }
+
+        .tag.red {
+            background: #fff2f0;
+            color: #ff4d4f;
+            border: 1px solid #ffccc7;
+        }
+
+        .document-meta {
+            color: #8c8c8c;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .document-content {
+            color: #595959;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .document-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #1890ff;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            border-color: #1890ff;
+            background: #f0f8ff;
+        }
+
+        /* 内嵌预览面板 */
+        .inline-preview-panel {
+            width: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            animation: slideInFromRight 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes slideInFromRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .preview-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fafafa;
+        }
+
+        .preview-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #262626;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: #8c8c8c;
+            font-size: 16px;
+        }
+
+        .close-btn:hover {
+            color: #262626;
+        }
+
+        .preview-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 文档信息部分 */
+        .file-details-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            background: #fafafa;
+        }
+
+        .file-details-section h5 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #262626;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .document-info-table {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px 16px;
+            align-items: start;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #8c8c8c;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .detail-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #262626;
+            word-break: break-all;
+        }
+
+        /* HTML内容部分 */
+        .html-content-section {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: white;
+        }
+
+        .html-content-section h5 {
+            margin: 0 0 16px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #262626;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .html-content-wrapper {
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 16px;
+            background: #fafafa;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .html-content-wrapper div {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #262626;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #8c8c8c;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #8c8c8c;
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin: 20px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 16px;
+            }
+
+            .content-with-preview {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .file-list-container.with-preview {
+                width: 100%;
+            }
+
+            .inline-preview-panel {
+                width: 100%;
+                transform: none;
+                animation: none;
+            }
+
+            .document-info-table {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 隐藏类 */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="logo">合同档案管理系统</div>
+        <nav class="nav-menu">
+            <a href="#" class="nav-item">首页</a>
+            <a href="#" class="nav-item">文档上传</a>
+            <a href="#" class="nav-item active">智能搜索</a>
+            <a href="#" class="nav-item">使用统计</a>
+            <a href="#" class="nav-item">系统设置</a>
+        </nav>
+    </header>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 搜索卡片 -->
+        <div class="search-card">
+            <div class="search-card-header">
+                <h2 class="search-card-title">智能文档搜索</h2>
+                <p class="search-card-description">通过自然语言或关键词搜索文档内容，支持智能问答和精确检索</p>
+            </div>
+
+            <!-- 搜索标签页 -->
+            <div class="search-tabs">
+                <div class="search-tab" data-tab="list">合同列表</div>
+                <div class="search-tab active" data-tab="natural">自然语言搜索</div>
+                <div class="search-tab" data-tab="keyword">关键词搜索</div>
+            </div>
+
+            <!-- 搜索内容 -->
+            <div class="search-content">
+                <div class="search-box">
+                    <div class="search-input-group">
+                        <input type="text" class="search-input" id="searchInput" placeholder="🔍 请输入您的问题，如：找出所有与租赁相关的合同">
+                        <button class="search-btn" onclick="performSearch()">搜索</button>
+                        <button class="filter-btn" onclick="toggleFilter()">高级筛选</button>
+                    </div>
+
+                    <!-- 示例查询（仅在自然语言搜索时显示） -->
+                    <div class="example-queries" id="exampleQueries">
+                        <span class="example-tag" onclick="setQuery('找出所有与租赁相关的合同')">找出所有与租赁相关的合同</span>
+                        <span class="example-tag" onclick="setQuery('2023年签订的采购合同有哪些')">2023年签订的采购合同有哪些</span>
+                        <span class="example-tag" onclick="setQuery('合同中关于违约金的条款')">合同中关于违约金的条款</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索结果 -->
+        <div class="results-container">
+            <div class="results-header">
+                <div class="results-count">共有 <strong>1,234</strong> 个合同</div>
+                <button class="sort-btn" onclick="toggleSort()">按上传时间降序 ↓</button>
+            </div>
+
+            <div class="content-with-preview">
+                <!-- 文档列表 -->
+                <div class="file-list-container" id="fileListContainer">
+                    <!-- 文档项1 -->
+                    <div class="document-item" onclick="selectDocument(1)">
+                        <div class="document-header">
+                            <div class="file-icon">📄</div>
+                            <div class="document-title">C23PH0001 购买合同书.pdf</div>
+                            <div class="document-tags">
+                                <span class="tag blue">PDF</span>
+                                <span class="tag green">OCR: 已完成</span>
+                            </div>
+                        </div>
+                        <div class="document-meta">
+                            文件大小: 2.34 MB | 处理时间: 2024-01-15 14:30 | 上传于 2024-01-15 10:20
+                        </div>
+                        <div class="document-content">
+                            甲方：某某公司 乙方：某某供应商 合同编号：C23PH0001 签订日期：2023年12月15日 本合同就甲方向乙方采购办公用品事宜，经双方友好协商，达成如下协议...
+                        </div>
+                        <div class="document-actions">
+                            <a href="#" class="action-btn">👁 预览</a>
+                            <a href="#" class="action-btn">⬇ 下载</a>
+                        </div>
+                    </div>
+
+                    <!-- 文档项2 -->
+                    <div class="document-item" onclick="selectDocument(2)">
+                        <div class="document-header">
+                            <div class="file-icon">📄</div>
+                            <div class="document-title">C23PH0002 服务合同.pdf</div>
+                            <div class="document-tags">
+                                <span class="tag blue">PDF</span>
+                                <span class="tag orange">OCR: 处理中</span>
+                            </div>
+                        </div>
+                        <div class="document-meta">
+                            文件大小: 1.87 MB | 上传于 2024-01-14 16:45
+                        </div>
+                        <div class="document-content">
+                            甲方：某某公司 乙方：某某服务商 合同编号：C23PH0002 签订日期：2023年11月20日 本合同就甲方委托乙方提供技术服务事宜...
+                        </div>
+                        <div class="document-actions">
+                            <a href="#" class="action-btn">👁 预览</a>
+                            <a href="#" class="action-btn">⬇ 下载</a>
+                        </div>
+                    </div>
+
+                    <!-- 文档项3 -->
+                    <div class="document-item" onclick="selectDocument(3)">
+                        <div class="document-header">
+                            <div class="file-icon">📄</div>
+                            <div class="document-title">C23PH0003 租赁协议书.pdf</div>
+                            <div class="document-tags">
+                                <span class="tag blue">PDF</span>
+                                <span class="tag green">OCR: 已完成</span>
+                            </div>
+                        </div>
+                        <div class="document-meta">
+                            文件大小: 3.12 MB | 处理时间: 2024-01-13 09:15 | 上传于 2024-01-13 08:30
+                        </div>
+                        <div class="document-content">
+                            出租方：某某房地产公司 承租方：某某公司 合同编号：C23PH0003 签订日期：2023年10月10日 租赁物业：办公楼A座15层...
+                        </div>
+                        <div class="document-actions">
+                            <a href="#" class="action-btn">👁 预览</a>
+                            <a href="#" class="action-btn">⬇ 下载</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 内嵌预览面板 -->
+                <div class="inline-preview-panel hidden" id="previewPanel">
+                    <div class="preview-header">
+                        <h4>文档预览</h4>
+                        <button class="close-btn" onclick="closePreview()">✕</button>
+                    </div>
+
+                    <div class="preview-content">
+                        <!-- 文档信息部分 -->
+                        <div class="file-details-section">
+                            <h5>文档信息</h5>
+                            <div class="document-info-table">
+                                <div class="detail-item">
+                                    <div class="detail-label">文件名</div>
+                                    <div class="detail-value" id="previewFileName">C23PH0001 购买合同书.pdf</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">文件类型</div>
+                                    <div class="detail-value" id="previewFileType">PDF</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">文件大小</div>
+                                    <div class="detail-value" id="previewFileSize">2.34 MB</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">上传时间</div>
+                                    <div class="detail-value" id="previewUploadTime">01-15 10:20</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">OCR状态</div>
+                                    <span class="tag green" id="previewOcrStatus">已完成</span>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">操作</div>
+                                    <button class="action-btn" onclick="downloadDocument()">⬇ 下载</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- HTML内容部分 -->
+                        <div class="html-content-section">
+                            <h5>文档内容</h5>
+                            <div class="html-content-wrapper" id="documentContent">
+                                <div>
+                                    <h3>购买合同书</h3>
+                                    <p><strong>合同编号：</strong>C23PH0001</p>
+                                    <p><strong>甲方：</strong>某某公司</p>
+                                    <p><strong>乙方：</strong>某某供应商</p>
+                                    <p><strong>签订日期：</strong>2023年12月15日</p>
+                                    
+                                    <h4>第一条 合同标的</h4>
+                                    <p>甲方向乙方采购办公用品，具体清单详见附件一。</p>
+                                    
+                                    <h4>第二条 价格条款</h4>
+                                    <p>合同总价为人民币50,000元整（大写：伍万元整）。</p>
+                                    
+                                    <h4>第三条 付款方式</h4>
+                                    <p>甲方应在收到货物并验收合格后30日内支付全部货款。</p>
+                                    
+                                    <h4>第四条 交货条款</h4>
+                                    <p>乙方应在合同签订后15个工作日内完成交货。</p>
+                                    
+                                    <h4>第五条 违约责任</h4>
+                                    <p>任何一方违反本合同约定，应承担相应的违约责任，违约金为合同总价的10%。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentTab = 'natural';
+        let selectedDocumentId = null;
+
+        // 标签页切换
+        document.querySelectorAll('.search-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // 移除所有active类
+                document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+                // 添加active类到当前标签
+                this.classList.add('active');
+                
+                currentTab = this.dataset.tab;
+                updateSearchInterface();
+            });
+        });
+
+        // 更新搜索界面
+        function updateSearchInterface() {
+            const searchInput = document.getElementById('searchInput');
+            const exampleQueries = document.getElementById('exampleQueries');
+            
+            switch(currentTab) {
+                case 'list':
+                    searchInput.style.display = 'none';
+                    exampleQueries.style.display = 'none';
+                    document.querySelector('.results-count').innerHTML = '共有 <strong>1,234</strong> 个合同';
+                    break;
+                case 'natural':
+                    searchInput.style.display = 'block';
+                    searchInput.placeholder = '🔍 请输入您的问题，如：找出所有与租赁相关的合同';
+                    exampleQueries.style.display = 'flex';
+                    document.querySelector('.results-count').innerHTML = '找到 <strong>3</strong> 条结果';
+                    break;
+                case 'keyword':
+                    searchInput.style.display = 'block';
+                    searchInput.placeholder = '🔍 请输入关键词，如：租赁 违约金 付款方式';
+                    exampleQueries.style.display = 'none';
+                    document.querySelector('.results-count').innerHTML = '找到 <strong>5</strong> 条结果';
+                    break;
+            }
+        }
+
+        // 设置查询内容
+        function setQuery(query) {
+            document.getElementById('searchInput').value = query;
+            performSearch();
+        }
+
+        // 执行搜索
+        function performSearch() {
+            const query = document.getElementById('searchInput').value;
+            if (query.trim()) {
+                console.log(`执行${currentTab}搜索:`, query);
+                // 这里可以添加实际的搜索逻辑
+            }
+        }
+
+        // 切换筛选
+        function toggleFilter() {
+            console.log('打开高级筛选');
+            // 这里可以添加筛选面板的显示逻辑
+        }
+
+        // 切换排序
+        function toggleSort() {
+            const sortBtn = document.querySelector('.sort-btn');
+            if (sortBtn.textContent.includes('降序')) {
+                sortBtn.textContent = '按上传时间升序 ↑';
+            } else {
+                sortBtn.textContent = '按上传时间降序 ↓';
+            }
+        }
+
+        // 选择文档
+        function selectDocument(id) {
+            // 移除之前选中的状态
+            document.querySelectorAll('.document-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // 添加选中状态
+            event.currentTarget.classList.add('selected');
+            
+            selectedDocumentId = id;
+            showPreview(id);
+        }
+
+        // 显示预览
+        function showPreview(id) {
+            const previewPanel = document.getElementById('previewPanel');
+            const fileListContainer = document.getElementById('fileListContainer');
+            
+            // 显示预览面板
+            previewPanel.classList.remove('hidden');
+            fileListContainer.classList.add('with-preview');
+            
+            // 更新预览内容（这里是模拟数据）
+            const documentData = {
+                1: {
+                    fileName: 'C23PH0001 购买合同书.pdf',
+                    fileType: 'PDF',
+                    fileSize: '2.34 MB',
+                    uploadTime: '01-15 10:20',
+                    ocrStatus: '已完成',
+                    content: `
+                        <h3>购买合同书</h3>
+                        <p><strong>合同编号：</strong>C23PH0001</p>
+                        <p><strong>甲方：</strong>某某公司</p>
+                        <p><strong>乙方：</strong>某某供应商</p>
+                        <p><strong>签订日期：</strong>2023年12月15日</p>
+                        
+                        <h4>第一条 合同标的</h4>
+                        <p>甲方向乙方采购办公用品，具体清单详见附件一。</p>
+                        
+                        <h4>第二条 价格条款</h4>
+                        <p>合同总价为人民币50,000元整（大写：伍万元整）。</p>
+                        
+                        <h4>第三条 付款方式</h4>
+                        <p>甲方应在收到货物并验收合格后30日内支付全部货款。</p>
+                        
+                        <h4>第四条 交货条款</h4>
+                        <p>乙方应在合同签订后15个工作日内完成交货。</p>
+                        
+                        <h4>第五条 违约责任</h4>
+                        <p>任何一方违反本合同约定，应承担相应的违约责任，违约金为合同总价的10%。</p>
+                    `
+                },
+                2: {
+                    fileName: 'C23PH0002 服务合同.pdf',
+                    fileType: 'PDF',
+                    fileSize: '1.87 MB',
+                    uploadTime: '01-14 16:45',
+                    ocrStatus: '处理中',
+                    content: `
+                        <h3>服务合同</h3>
+                        <p><strong>合同编号：</strong>C23PH0002</p>
+                        <p><strong>甲方：</strong>某某公司</p>
+                        <p><strong>乙方：</strong>某某服务商</p>
+                        <p><strong>签订日期：</strong>2023年11月20日</p>
+                        
+                        <h4>第一条 服务内容</h4>
+                        <p>乙方为甲方提供技术咨询和系统维护服务。</p>
+                        
+                        <h4>第二条 服务期限</h4>
+                        <p>服务期限为一年，自2023年12月1日至2024年11月30日。</p>
+                    `
+                },
+                3: {
+                    fileName: 'C23PH0003 租赁协议书.pdf',
+                    fileType: 'PDF',
+                    fileSize: '3.12 MB',
+                    uploadTime: '01-13 08:30',
+                    ocrStatus: '已完成',
+                    content: `
+                        <h3>租赁协议书</h3>
+                        <p><strong>合同编号：</strong>C23PH0003</p>
+                        <p><strong>出租方：</strong>某某房地产公司</p>
+                        <p><strong>承租方：</strong>某某公司</p>
+                        <p><strong>签订日期：</strong>2023年10月10日</p>
+                        
+                        <h4>第一条 租赁物业</h4>
+                        <p>出租方将位于某某大厦A座15层的办公场所出租给承租方使用。</p>
+                        
+                        <h4>第二条 租赁期限</h4>
+                        <p>租赁期限为三年，自2023年11月1日至2026年10月31日。</p>
+                        
+                        <h4>第三条 租金标准</h4>
+                        <p>月租金为人民币30,000元，每季度支付一次。</p>
+                    `
+                }
+            };
+            
+            const data = documentData[id];
+            if (data) {
+                document.getElementById('previewFileName').textContent = data.fileName;
+                document.getElementById('previewFileType').textContent = data.fileType;
+                document.getElementById('previewFileSize').textContent = data.fileSize;
+                document.getElementById('previewUploadTime').textContent = data.uploadTime;
+                document.getElementById('previewOcrStatus').textContent = data.ocrStatus;
+                document.getElementById('documentContent').innerHTML = `<div>${data.content}</div>`;
+            }
+        }
+
+        // 关闭预览
+        function closePreview() {
+            const previewPanel = document.getElementById('previewPanel');
+            const fileListContainer = document.getElementById('fileListContainer');
+            
+            previewPanel.classList.add('hidden');
+            fileListContainer.classList.remove('with-preview');
+            
+            // 移除选中状态
+            document.querySelectorAll('.document-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            selectedDocumentId = null;
+        }
+
+        // 下载文档
+        function downloadDocument() {
+            if (selectedDocumentId) {
+                console.log('下载文档:', selectedDocumentId);
+                // 这里可以添加实际的下载逻辑
+            }
+        }
+
+        // 初始化界面
+        updateSearchInterface();
+    </script>
+</body>
+</html>
