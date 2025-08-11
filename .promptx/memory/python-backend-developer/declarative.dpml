@@ -277,4 +277,10 @@
     </content>
     <tags>#其他</tags>
   </item>
+  <item id="mem_1754898412304_oinqyzrzj" time="2025/08/11 15:46">
+    <content>
+      项目进度纠正：文件处理阶段已完成：1.文件上传和存储 2.OCR提取HTML和TXT格式数据（使用THUDM/GLM-4.1V-9B-Thinking模型，后续会更换） 3.利用langchain对TXT文档进行分块处理 4.Elasticsearch索引同步 5.已安装faiss-cpu。未完成：1.BGE-M3向量化 2.存储向量到向量数据库中 3.其他功能。用户明确表示放弃Faiss可视化需求。
+    </content>
+    <tags>#其他</tags>
+  </item>
 </memory>

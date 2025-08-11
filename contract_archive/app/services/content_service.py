@@ -528,7 +528,7 @@ class ContentProcessingService:
 
     def delete_contract_chunks(self, contract_id: int, db: Session) -> Dict[str, Any]:
         """
-        删除合同的所有分块内容
+        删除合同的所有分块内容，并重置相关状态
         
         Args:
             contract_id: 合同ID
@@ -543,13 +543,20 @@ class ContentProcessingService:
                 ContractContent.contract_id == contract_id
             ).delete()
             
+            # 更新合同状态，重置内容和向量状态为pending
+            contract = db.query(Contract).filter(Contract.id == contract_id).first()
+            if contract:
+                contract.content_status = "pending"
+                contract.vector_status = "pending"
+                contract.elasticsearch_sync_status = "pending"
+            
             db.commit()
             
             logger.info(f"删除合同分块完成 contract_id={contract_id}, 删除数量={deleted_count}")
             
             return {
                 "status": "success",
-                "message": "分块内容删除完成",
+                "message": "分块内容删除完成，状态已重置",
                 "contract_id": contract_id,
                 "deleted_count": deleted_count
             }

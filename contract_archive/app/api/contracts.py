@@ -21,6 +21,7 @@ from app.crud import contract_crud, content_crud
 from app.services import file_service, ocr_service
 from app.services.content_service import ContentProcessingService
 from app.services.elasticsearch_service import elasticsearch_service
+from app.services.vector_service import vector_service
 from app.config import settings
 
 router = APIRouter(prefix="/api/v1/contracts", tags=["合同管理"])
@@ -435,7 +436,7 @@ async def delete_contract(
     db: Session = Depends(get_db)
 ):
     """
-    删除指定合同及其相关文件
+    删除指定合同及其相关文件、Elasticsearch索引和向量数据
     
     - **contract_id**: 合同ID
     """
@@ -445,21 +446,41 @@ async def delete_contract(
         if not contract:
             raise HTTPException(status_code=404, detail="合同不存在")
         
-        # 删除相关文件
+        # 1. 删除Elasticsearch索引（先删除ES，避免删除DB后无法清理ES）
+        try:
+            es_result = elasticsearch_service.delete_contract(contract_id)
+            if es_result:
+                print(f"成功删除ES索引: contract_id={contract_id}")
+            else:
+                print(f"ES删除失败或未找到索引: contract_id={contract_id}")
+        except Exception as e:
+            print(f"ES删除异常: {str(e)}")
+        
+        # 2. 删除向量数据（清理Faiss索引和向量映射）
+        try:
+            vector_result = vector_service.remove_contract_vectors(contract_id, db)
+            if vector_result["status"] == "success":
+                print(f"成功删除向量数据: contract_id={contract_id}, 移除数量={vector_result.get('removed_count', 0)}")
+            else:
+                print(f"向量删除失败: {vector_result.get('message', '未知错误')}")
+        except Exception as e:
+            print(f"向量删除异常: {str(e)}")
+        
+        # 3. 删除相关文件
         file_service.delete_file(contract.file_path)
         if contract.html_content_path:
             file_service.delete_file(contract.html_content_path)
         if contract.text_content_path:
             file_service.delete_file(contract.text_content_path)
         
-        # 删除数据库记录
+        # 4. 删除数据库记录（包含合同主记录和相关分块，由于外键级联删除）
         success = contract_crud.delete_contract(db, contract_id)
         if not success:
             raise HTTPException(status_code=500, detail="删除合同记录失败")
         
         return BaseResponse(
             success=True,
-            message="合同删除成功",
+            message="合同删除成功（包含ES索引和向量数据）",
             data={"contract_id": contract_id}
         )
         
@@ -690,12 +711,15 @@ async def delete_contract_chunks(
         
         # 使用内容处理服务删除分块
         content_service = ContentProcessingService()
-        deleted_count = await content_service.delete_contract_chunks(contract_id)
+        result = content_service.delete_contract_chunks(contract_id, db)
+        
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "删除分块失败"))
         
         return BaseResponse(
             success=True,
-            message=f"成功删除 {deleted_count} 个分块",
-            data={"contract_id": contract_id, "deleted_count": deleted_count}
+            message=result.get("message", "分块内容删除完成"),
+            data={"contract_id": contract_id, "deleted_count": result.get("deleted_count", 0)}
         )
         
     except HTTPException:
@@ -1111,7 +1135,7 @@ async def process_contract_automated(
 
 async def process_automated_background(contract_id: int, file_path: str, force_reprocess: bool, db: Session):
     """
-    后台自动化处理任务：OCR -> 切片 -> ES同步
+    后台自动化处理任务：OCR -> 切片 -> 向量化 -> ES同步
     """
     try:
         print(f"开始自动化处理合同 {contract_id}")
@@ -1145,41 +1169,54 @@ async def process_automated_background(contract_id: int, file_path: str, force_r
         else:
             print(f"OCR已完成，跳过OCR步骤 contract_id={contract_id}")
         
-        # 步骤2: 内容切片处理
+        # 步骤2: 内容切片处理（支持强制重跑）
         print(f"执行内容切片处理 contract_id={contract_id}")
         content_service = ContentProcessingService()
         
-        # 检查是否需要重新处理切片
         if force_reprocess:
-            # 删除现有切片
-            content_service.delete_contract_chunks(contract_id, db)
+            try:
+                content_service.delete_contract_chunks(contract_id, db)
+            except Exception as e:
+                print(f"删除旧切片失败（可忽略） contract_id={contract_id}: {str(e)}")
         
-        # 执行切片处理
         chunk_result = content_service.process_contract_content(contract_id, db)
-        
-        if chunk_result["status"] != "success":
-            print(f"内容切片处理失败 contract_id={contract_id}: {chunk_result['message']}")
+        if chunk_result.get("status") != "success":
+            print(f"内容切片处理失败 contract_id={contract_id}: {chunk_result.get('message')}")
             return
+        print(f"内容切片处理完成 contract_id={contract_id}, 生成 {chunk_result.get('chunk_count')} 个切片")
         
-        print(f"内容切片处理完成 contract_id={contract_id}, 生成 {chunk_result['chunk_count']} 个切片")
+        # 步骤3: 文本向量化（BGE-M3 + Faiss）
+        try:
+            print(f"开始向量化处理 contract_id={contract_id}")
+            # 先移除旧的向量数据（支持强制重跑）
+            if force_reprocess:
+                try:
+                    vector_cleanup = vector_service.remove_contract_vectors(contract_id, db)
+                    print(f"向量清理结果 contract_id={contract_id}: {vector_cleanup.get('message', '')}")
+                except Exception as e:
+                    print(f"向量清理异常 contract_id={contract_id}: {str(e)}")
+            vec_result = vector_service.vectorize_contract_chunks(contract_id, db)
+            if vec_result.get("status") == "success":
+                print(f"向量化完成 contract_id={contract_id}, processed_chunks={vec_result.get('processed_chunks')} total_vectors={vec_result.get('total_vectors')}")
+            else:
+                print(f"向量化失败 contract_id={contract_id}: {vec_result.get('message')}")
+        except Exception as e:
+            print(f"向量化异常 contract_id={contract_id}: {str(e)}")
         
-        # 步骤3: 同步到Elasticsearch
+        # 步骤4: 同步到Elasticsearch
         if elasticsearch_service.is_available():
             print(f"执行Elasticsearch同步 contract_id={contract_id}")
-            
             sync_result = content_service.sync_to_elasticsearch(contract_id, db)
-            
-            if sync_result["status"] == "success":
+            if sync_result.get("status") == "success":
                 print(f"Elasticsearch同步完成 contract_id={contract_id}")
                 print(f"自动化处理全部完成 contract_id={contract_id}")
             else:
-                print(f"Elasticsearch同步失败 contract_id={contract_id}: {sync_result['message']}")
+                print(f"Elasticsearch同步失败 contract_id={contract_id}: {sync_result.get('message')}")
         else:
             print(f"Elasticsearch服务不可用，跳过同步步骤 contract_id={contract_id}")
             
     except Exception as e:
         print(f"自动化处理异常 contract_id={contract_id}: {str(e)}")
-        # 更新失败状态
         try:
             contract_crud.update_contract_status(db, contract_id, ocr_status="failed")
         except:

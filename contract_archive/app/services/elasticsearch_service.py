@@ -537,6 +537,90 @@ class ElasticsearchService:
         except Exception as e:
             logger.error(f"删除合同索引失败: {str(e)}")
             return False
+    
+    def clear_all_indices(self) -> bool:
+        """清空所有索引的数据（保留索引结构）"""
+        if not self.is_available():
+            logger.warning("Elasticsearch不可用，无法清空索引")
+            return False
+        
+        try:
+            # 清空contracts索引
+            contracts_result = self.client.delete_by_query(
+                index="contracts",
+                body={"query": {"match_all": {}}},
+                refresh=True
+            )
+            
+            # 清空contract_contents索引
+            contents_result = self.client.delete_by_query(
+                index="contract_contents", 
+                body={"query": {"match_all": {}}},
+                refresh=True
+            )
+            
+            deleted_contracts = contracts_result.get('deleted', 0)
+            deleted_contents = contents_result.get('deleted', 0)
+            
+            logger.info(f"成功清空ES索引: contracts删除{deleted_contracts}个文档，contract_contents删除{deleted_contents}个文档")
+            return True
+            
+        except Exception as e:
+            logger.error(f"清空ES索引失败: {str(e)}")
+            return False
+    
+    def recreate_indices(self) -> bool:
+        """重新创建所有索引（先删除再创建，完全重置）"""
+        if not self.is_available():
+            logger.warning("Elasticsearch不可用，无法重新创建索引")
+            return False
+        
+        try:
+            # 删除现有索引
+            for index_name in ["contracts", "contract_contents"]:
+                try:
+                    if self.client.indices.exists(index=index_name):
+                        self.client.indices.delete(index=index_name)
+                        logger.info(f"删除索引: {index_name}")
+                except Exception as e:
+                    logger.warning(f"删除索引 {index_name} 时出错: {str(e)}")
+            
+            # 重新创建索引
+            self._create_indices()
+            logger.info("成功重新创建所有ES索引")
+            return True
+            
+        except Exception as e:
+            logger.error(f"重新创建ES索引失败: {str(e)}")
+            return False
+    
+    def get_index_stats(self) -> Dict[str, Any]:
+        """获取索引统计信息"""
+        if not self.is_available():
+            return {"error": "Elasticsearch不可用"}
+        
+        try:
+            stats = {}
+            
+            for index_name in ["contracts", "contract_contents"]:
+                if self.client.indices.exists(index=index_name):
+                    count_result = self.client.count(index=index_name)
+                    stats[index_name] = {
+                        "exists": True,
+                        "document_count": count_result.get("count", 0)
+                    }
+                else:
+                    stats[index_name] = {
+                        "exists": False,
+                        "document_count": 0
+                    }
+            
+            logger.info(f"ES索引统计: {stats}")
+            return stats
+            
+        except Exception as e:
+            logger.error(f"获取ES索引统计失败: {str(e)}")
+            return {"error": f"获取统计失败: {str(e)}"}
 
 # 全局实例
 elasticsearch_service = ElasticsearchService()

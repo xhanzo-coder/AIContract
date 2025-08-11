@@ -9,7 +9,7 @@ class Settings(BaseModel):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://contract_user:contract%402025@localhost:5432/contract_archive")
     
     # SiliconFlow BGE-M3 API配置
-    SILICONFLOW_API_KEY: str = os.getenv("SILICONFLOW_API_KEY", "")
+    SILICONFLOW_API_KEY: str = os.getenv("SILICONFLOW_API_KEY", "sk-jvzbrgzerhfbtetfuapjhwjwpzuwhfphiisvylabwesvzzza")
     SILICONFLOW_BGE_URL: str = os.getenv("SILICONFLOW_BGE_URL", "https://api.siliconflow.cn/v1/embeddings")
     
     # 火山引擎豆包API配置

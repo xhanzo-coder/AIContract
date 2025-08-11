@@ -1210,6 +1210,94 @@
         },
         "description": "删除指定的问答会话及其所有消息记录"
       }
+    },
+    {
+      "name": "24. 一键清空所有已同步数据 (开发环境专用)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 警告提示：这是一个危险操作",
+              "console.warn('⚠️  WARNING: This will clear all Elasticsearch data and reset vector statuses!');",
+              "console.warn('⚠️  This endpoint is for DEVELOPMENT ONLY - DO NOT use in production!');",
+              "console.log('Operation will:');",
+              "console.log('- Clear all Elasticsearch documents OR recreate indices');",
+              "console.log('- Reset all contract/chunk vector statuses to pending');",
+              "console.log('- Clear vector ID mappings');",
+              "console.log('- Keep database records and uploaded files intact');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has success field', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('success');",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "});",
+              "",
+              "pm.test('Response has clearance data', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('elasticsearch');",
+              "    pm.expect(jsonData.data).to.have.property('vectors');",
+              "    pm.expect(jsonData.data).to.have.property('notes');",
+              "});",
+              "",
+              "pm.test('Elasticsearch operation succeeded', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data.elasticsearch.success).to.be.true;",
+              "});",
+              "",
+              "console.log('🧹 Clear operation completed:');",
+              "console.log('- ES Action:', pm.response.json().data.elasticsearch.action);",
+              "console.log('- Contracts Reset:', pm.response.json().data.vectors.contracts_reset);",
+              "console.log('- Chunks Reset:', pm.response.json().data.vectors.chunks_reset);",
+              "console.log('⚠️  Remember to re-upload and process contracts for testing!');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reset_indices\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/clear-all?reset_indices=false",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "clear-all"],
+          "query": [
+            {
+              "key": "reset_indices",
+              "value": "false",
+              "description": "是否完全重建索引（true）还是仅清空文档（false，默认）"
+            }
+          ]
+        },
+        "description": "⚠️ 开发环境专用：一键清空所有ES文档和向量状态，便于重新测试。\n\n**操作内容：**\n- 清空/重建 Elasticsearch 索引中的所有文档\n- 重置所有合同和分块的向量状态为 pending\n- 清空向量ID映射关系\n- 保留数据库记录和上传文件不变\n\n**参数说明：**\n- `reset_indices=false`：仅清空文档，保留索引结构（默认，推荐）\n- `reset_indices=true`：完全删除并重新创建索引\n\n**注意事项：**\n- 仅供本地开发测试使用\n- 生产环境请勿暴露此接口\n- 操作后需重新上传并处理合同进行测试"
+      }
     }
   ],
   "event": [
@@ -1222,7 +1310,7 @@
           "console.log('Request to: ' + pm.request.url);",
           "console.log('Method: ' + pm.request.method);",
           "",
-          "// 检查contract_id是否存在（除了健康检查、上传接口和全局搜索接口）",
+          "// 检查contract_id是否存在（除了健康检查、上传接口、全局搜索接口和维护接口）",
           "var requestName = pm.info.requestName;",
           "var needsContractId = ['4. 获取合同详情', '5. 查询OCR状态', '6. 手动触发OCR处理 (GLM-4.1V)', '7. 获取内容状态', '8. 处理内容分块', '9. 获取分块列表', '10. 获取自动化处理状态', '11. 搜索分块', '14. 同步合同到 Elasticsearch', '15. 自动化处理合同（OCR+切片+ES同步）', '18. 删除合同 (谨慎使用)'];",
           "",
