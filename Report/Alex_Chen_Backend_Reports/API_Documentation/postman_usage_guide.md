@@ -31,9 +31,18 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 6. **手动触发OCR** - 如需重新处理OCR
 7. **删除合同** - 清理测试数据（谨慎使用）
 
+### QA问答测试流程
+1. **提问并获取AI回答** - 向AI提问，自动获取session_id和message_id
+2. **获取会话列表** - 查看所有问答会话
+3. **获取会话历史** - 查看特定会话的完整对话记录
+4. **提交用户反馈** - 对AI回答进行点赞/点踩/评论
+5. **删除会话** - 清理测试数据（谨慎使用）
+
 ### 自动化功能
 - **自动保存contract_id**: 上传文件后自动保存到环境变量
+- **自动保存session_id和message_id**: 提问后自动保存到环境变量
 - **OCR状态轮询**: 如果OCR还在处理中，会自动重试查询
+- **环境变量自动清理**: 删除会话后自动清除相关环境变量
 - **错误处理**: 自动记录错误信息到控制台
 
 ## 接口详情
@@ -76,6 +85,46 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - **功能**: 删除合同及相关文件
 - **注意**: 此操作不可逆，请谨慎使用
 
+## QA问答接口
+
+### 8. 提问并获取AI回答 `/api/v1/qa/ask`
+- **方法**: POST
+- **参数**:
+  - `question`: 用户问题（必需）
+  - `session_id`: 会话ID（可选，新会话时为null）
+  - `search_method`: 搜索方法（可选，默认"hybrid"）
+- **功能**: 向AI提问并获取基于合同内容的智能回答
+- **响应**: 返回session_id、message_id和AI回答
+- **自动化**: 成功后自动保存session_id和message_id到环境变量
+
+### 9. 获取会话列表 `/api/v1/qa/sessions`
+- **方法**: GET
+- **参数**:
+  - `page`: 页码（默认1）
+  - `size`: 每页数量（默认10）
+- **功能**: 获取用户的问答会话列表
+- **响应**: 返回分页的会话列表，包含会话标题和最后更新时间
+
+### 10. 获取会话历史记录 `/api/v1/qa/sessions/{session_id}`
+- **方法**: GET
+- **功能**: 获取指定会话的完整历史记录
+- **响应**: 返回会话中的所有问答消息
+- **前置条件**: 需要先执行提问接口获取session_id
+
+### 11. 提交用户反馈 `/api/v1/qa/sessions/{session_id}/messages/{message_id}/feedback`
+- **方法**: POST
+- **参数**:
+  - `feedback_type`: 反馈类型（"like"、"dislike"或"neutral"）
+  - `comment`: 反馈评论（可选）
+- **功能**: 对AI回答提交用户反馈
+- **前置条件**: 需要先执行提问接口获取session_id和message_id
+
+### 12. 删除会话 `/api/v1/qa/sessions/{session_id}`
+- **方法**: DELETE
+- **功能**: 删除指定的问答会话及其所有消息记录
+- **自动化**: 成功后自动清除环境变量中的session_id和message_id
+- **注意**: 此操作不可逆，请谨慎使用
+
 ## GLM-4.1V 特性
 
 本系统集成了 SiliconFlow 的 GLM-4.1V 视觉模型，具有以下优势：
@@ -98,7 +147,11 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 2. 上传一个简单的测试文件
 3. 等待OCR处理完成（通过状态查询监控）
 4. 查看处理结果和合同详情
-5. 测试其他功能接口
+5. 测试QA问答功能：
+   - 提问获取AI回答
+   - 查看会话列表和历史
+   - 提交反馈测试
+6. 测试其他功能接口
 
 ### 常见问题
 - **上传失败**: 检查文件格式和大小限制
@@ -108,6 +161,13 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - **配置属性错误**: 如遇到 `'Settings' object has no attribute 'ALLOWED_EXTENSIONS'` 等错误，说明配置文件引用有误，已在最新版本中修复
 
 ## 版本更新记录
+
+### v1.2 (2025-01-XX)
+- ✅ 新增QA问答功能模块
+- ✅ 添加5个QA相关API接口：提问、会话列表、会话历史、用户反馈、删除会话
+- ✅ 集成Elasticsearch搜索服务，支持智能问答
+- ✅ 自动化环境变量管理（session_id、message_id）
+- ✅ 完善的测试脚本和错误处理机制
 
 ### v1.1 (2025-08-01)
 - ✅ 修复了文件上传接口的配置引用错误

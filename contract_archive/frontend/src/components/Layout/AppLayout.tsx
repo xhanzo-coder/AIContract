@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons'
 import styled from 'styled-components'
 import { RootState } from '../../store'
+import ElasticsearchStatus from '../ElasticsearchStatus'
 
 const { Header, Content } = Layout
 
@@ -51,7 +52,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     },
     {
       key: 'search',
-      label: '智能搜索',
+      label: '文件管理',
       onClick: () => navigate('/search')
     },
     {
@@ -121,6 +122,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           />
         </NavMenu>
         
+        {/* Elasticsearch状态 */}
+        <ElasticsearchStatus />
+        
         {/* 用户信息 */}
         <UserInfo>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
@@ -135,7 +139,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <Content style={{ 
         padding: 0,
         overflow: 'initial',
-        background: '#f7fafc'
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%)'
       }}>
         {children}
       </Content>

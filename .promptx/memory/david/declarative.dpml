@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<memory>
+  <item id="mem_1754616412865_m7bh4ro4h" time="2025/08/08 09:26">
+    <content>
+      完成了问答页面的Elasticsearch搜索功能集成：1. 修改了SearchResult接口以适配新的Elasticsearch API返回数据结构，包含文档元信息字段；2. 实现了按文件分组显示搜索结果的功能，每个文件显示为一个独立的卡片；3. 更新了handleSearch函数调用新的/api/v1/contracts/elasticsearch/search接口；4. 实现了DocumentCanvas预览功能，点击文件卡片后显示详细的文档信息和高亮匹配内容；5. 优化了搜索结果的UI显示，包括文件名、合同编号、上传时间等元信息的展示；6. 实现了高亮文本的正确渲染，将&lt;em&gt;标签转换为高亮样式显示。功能已完成并可正常使用。
+    </content>
+    <tags>#其他</tags>
+  </item>
+</memory>

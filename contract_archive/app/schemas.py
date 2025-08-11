@@ -37,6 +37,7 @@ class ContractResponse(ContractBase):
     ocr_status: Optional[str] = Field(None, description="OCR状态")
     content_status: Optional[str] = Field(None, description="内容状态")
     vector_status: Optional[str] = Field(None, description="向量状态")
+    elasticsearch_sync_status: Optional[str] = Field(None, description="Elasticsearch同步状态")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
@@ -166,3 +167,46 @@ class ChunkPreview(BaseModel):
     content_preview: str = Field(..., description="内容预览")
     chunk_size: int = Field(..., description="分块大小")
     metadata: dict = Field(..., description="元数据")
+
+# 对话相关模式
+class QASessionCreate(BaseModel):
+    """创建问答会话请求模式"""
+    session_id: Optional[str] = Field(None, description="会话ID，不提供则自动生成")
+    question: str = Field(..., description="用户问题")
+
+class QASessionResponse(BaseModel):
+    """问答响应模式"""
+    id: int = Field(..., description="问答记录ID")
+    session_id: str = Field(..., description="会话ID")
+    session_title: Optional[str] = Field(None, description="会话标题")
+    message_order: int = Field(..., description="消息顺序")
+    question: str = Field(..., description="用户问题")
+    answer: Optional[str] = Field(None, description="AI回答")
+    source_contracts: Optional[List[int]] = Field(None, description="相关合同ID列表")
+    source_chunks: Optional[List[int]] = Field(None, description="相关内容块ID列表")
+    elasticsearch_results: Optional[dict] = Field(None, description="Elasticsearch搜索结果")
+    search_method: Optional[str] = Field(None, description="搜索方法")
+    ai_response_type: Optional[str] = Field(None, description="AI回答类型")
+    response_time: Optional[float] = Field(None, description="响应时间")
+    user_feedback: Optional[str] = Field(None, description="用户反馈")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="更新时间")
+
+    class Config:
+        from_attributes = True
+
+class SessionListResponse(BaseModel):
+    """会话列表响应模式"""
+    sessions: List[dict] = Field(..., description="会话列表")
+    total: int = Field(..., description="总会话数")
+
+class SessionHistoryResponse(BaseModel):
+    """会话历史响应模式"""
+    session_id: str = Field(..., description="会话ID")
+    session_title: Optional[str] = Field(None, description="会话标题")
+    messages: List[QASessionResponse] = Field(..., description="消息列表")
+    total_messages: int = Field(..., description="总消息数")
+
+class FeedbackRequest(BaseModel):
+    """反馈请求模式"""
+    feedback: str = Field(..., description="反馈类型：helpful/not_helpful")

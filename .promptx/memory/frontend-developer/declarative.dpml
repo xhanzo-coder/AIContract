@@ -22,4 +22,106 @@
     </content>
     <tags>#其他</tags>
   </item>
+  <item id="mem_1754384277637_hjz8eyvrb" time="2025/08/05 16:57">
+    <content>
+      合同切片预览功能问题诊断与修复完成：
+      1. 问题发现：用户反馈API接口 `/api/v1/contracts/4/content/chunks?page=1&amp;size=10` 返回了切片内容，但网页端切片预览显示为空
+      2. 问题定位：通过测试后端API和前端代理调用，确认数据传输正常，问题出现在前端数据字段映射
+      3. 根本原因：前端代码期望的切片内容字段是 `content`，但后端返回的字段是 `content_text`，导致字段不匹配
+      4. 修复方案：修改前端 Search/index.tsx 文件中的两处代码：
+      - 第841行：将 `chunk.content?.length || 0` 修改为 `chunk.content_text?.length || 0`
+      - 第847行：将 `{chunk.content}` 修改为 `{chunk.content_text}`
+      5. 验证结果：修复后前端能正确访问后端返回的切片内容，切片预览功能恢复正常
+      6. 技术细节：后端 content_service.py 返回的数据结构包含 content_text 字段，前端需要匹配此字段名
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1754536195496_n7sl6i41w" time="2025/08/07 11:09">
+    <content>
+      前端工程师不能修改或者运行一切后端服务，或后端出现问题，只能指出来。后端服务的问题应该由后端工程师处理，前端工程师专注于前端代码和UI问题。
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1754540780479_ppbik4cmr" time="2025/08/07 12:26">
+    <content>
+      前端工程师David的职责边界：
+    
+      ✅ 职责范围：
+      - React/TypeScript前端开发
+      - 前端UI/UX实现和优化
+      - 前端组件开发和重构
+      - 前端状态管理和API调用
+      - 前端性能优化
+      - 前端代码规范和最佳实践
+      - 前端测试和调试
+    
+      ❌ 严格禁止的操作：
+      - 修改任何后端Python代码
+      - 更改后端API接口
+      - 修改后端数据库逻辑
+      - 后端服务配置
+      - 后端依赖管理
+    
+      🤝 协作方式：
+      - 如需后端配合，向用户汇报具体需求
+      - 专注于前端功能的实现和优化
+      - 基于现有后端API进行前端开发
+    </content>
+    <tags>#最佳实践</tags>
+  </item>
+  <item id="mem_1754546205832_ve1crra8c" time="2025/08/07 13:56">
+    <content>
+      修复了合同上传功能中的&quot;Cannot read properties of undefined (reading &#x27;toString&#x27;)&quot;错误。
+    
+      问题分析：
+      1. 前端代码在调用contractId.toString()时，contractId可能为undefined
+      2. 发生在startAutomatedProcessing、monitorAutomatedProcessing和monitorOcrStatus函数中
+      3. 缺少getAutomatedProcessingStatus API方法定义
+    
+      修复方案：
+      1. 在调用startAutomatedProcessing前检查result.contract_id是否存在
+      2. 在monitorAutomatedProcessing和monitorOcrStatus函数中添加contractId的防御性检查
+      3. 在api.ts中添加getAutomatedProcessingStatus方法定义
+    
+      修复代码：
+      - 添加了if (result.contract_id)检查
+      - 添加了if (!contractId)防御性检查并提供错误处理
+      - 新增getAutomatedProcessingStatus API方法
+    
+      测试结果：前端和后端服务都正常运行，代码热更新成功
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1754547282773_fla1pa7r5" time="2025/08/07 14:14">
+    <content>
+      在合同列表页面添加文件处理进度条功能：
+    
+      **实现位置**：
+      - 文件：frontend/src/pages/Search/index.tsx
+      - 位置：List.Item.Meta的description区域，在上传时间信息之后
+    
+      **技术实现**：
+      1. 导入Progress组件：在antd导入中添加Progress
+      2. 进度计算逻辑：
+      - 从item.processing_steps获取处理步骤数据
+      - 计算总步骤数：Object.keys(steps).length
+      - 计算完成步骤数：status === &#x27;completed&#x27;的步骤数量
+      - 进度百分比：(completedSteps / totalSteps) * 100
+    
+      **状态处理**：
+      - normal：正常状态
+      - active：有步骤正在处理中
+      - exception：有步骤处理失败
+    
+      **UI设计**：
+      - 小尺寸进度条（size=&quot;small&quot;）
+      - 渐变色彩（蓝色到绿色）
+      - 显示当前处理状态文字
+      - 不显示百分比数字（showInfo={false}）
+    
+      **数据结构要求**：
+      后端需要在合同列表接口中返回processing_steps字段，包含各处理步骤的状态信息。
+    </content>
+    <tags>#流程管理</tags>
+  </item>
 </memory>

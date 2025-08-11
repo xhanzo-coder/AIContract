@@ -4,7 +4,7 @@
 import os
 import asyncio
 from typing import Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Query, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pathlib import Path
@@ -17,7 +17,7 @@ from app.schemas import (
     FileUploadResponse, OCRStatusResponse, ContractCreate, HTMLContentResponse,
     ContentStatusResponse, ContentProcessResponse, ChunkListResponse, ChunkSearchResponse
 )
-from app.crud import contract_crud
+from app.crud import contract_crud, content_crud
 from app.services import file_service, ocr_service
 from app.services.content_service import ContentProcessingService
 from app.services.elasticsearch_service import elasticsearch_service
@@ -31,6 +31,13 @@ async def simple_test():
     """最简单的测试路由"""
     print("DEBUG: simple_test 被调用")
     return {"message": "简单测试路由工作正常"}
+
+# 测试elasticsearch路由是否工作
+@router.get("/test-elasticsearch-simple", summary="测试elasticsearch路由")
+async def test_elasticsearch_simple():
+    """测试elasticsearch路由是否工作"""
+    print("DEBUG: test_elasticsearch_simple 被调用")
+    return {"message": "elasticsearch路由测试成功", "timestamp": "2025-08-06 00:32:00"}
 
 def extract_contract_info(filename: str) -> tuple[str, str]:
     """从文件名提取合同信息"""
@@ -84,7 +91,12 @@ async def upload_contract(
     db: Session = Depends(get_db)
 ):
     """
-    上传合同文件并自动开始OCR处理
+    上传合同文件并自动开始完整处理流程
+    
+    自动化处理流程：
+    1. OCR识别 - 提取文档内容
+    2. 文档切块 - 将内容分割成可搜索的块
+    3. Elasticsearch同步 - 建立搜索索引
     
     - **file**: 合同文件（支持PDF、DOC、DOCX格式）
     - **contract_type**: 合同类型（可选）
@@ -116,12 +128,8 @@ async def upload_contract(
         
         contract = contract_crud.create_contract(db, contract_data)
         
-        # 添加后台OCR任务
-        if ocr_service.is_available():
-            background_tasks.add_task(process_ocr_background, contract.id, relative_path, db)
-        else:
-            # OCR服务不可用，更新状态
-            contract_crud.update_contract_status(db, contract.id, ocr_status="failed")
+        # 添加后台自动化处理任务（OCR + 切片 + ES同步）
+        background_tasks.add_task(process_automated_background, contract.id, relative_path, False, db)
         
         # 构造响应数据
         response_data = FileUploadResponse(
@@ -135,7 +143,7 @@ async def upload_contract(
         
         return BaseResponse(
             success=True,
-            message="文件上传成功，OCR处理已开始",
+            message="文件上传成功，自动化处理已开始（OCR识别 → 文档切块 → Elasticsearch同步）",
             data=response_data
         )
         
@@ -267,7 +275,7 @@ async def download_contract_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"下载文件失败: {str(e)}")
 
-@router.get("/{contract_id}/ocr-status", response_model=BaseResponse, summary="获取OCR处理状态")
+@router.get("/{contract_id:int}/ocr-status", response_model=BaseResponse, summary="获取OCR处理状态")
 async def get_ocr_status(
     contract_id: int,
     db: Session = Depends(get_db)
@@ -346,7 +354,7 @@ async def process_contract_ocr(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动OCR处理失败: {str(e)}")
 
-@router.get("/{contract_id}/html-content", response_model=BaseResponse, summary="获取合同HTML内容")
+@router.get("/{contract_id:int}/html-content", response_model=BaseResponse, summary="获取合同HTML内容")
 async def get_contract_html_content(
     contract_id: int,
     db: Session = Depends(get_db)
@@ -460,44 +468,9 @@ async def delete_contract(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除合同失败: {str(e)}")
 
-# 通用路径必须放在最后，避免拦截具体路径
-@router.get("/{contract_id}", response_model=BaseResponse, summary="获取合同详情")
-async def get_contract(
-    contract_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    获取指定合同的详细信息
-    
-    - **contract_id**: 合同ID
-    """
-    try:
-        contract = contract_crud.get_contract_by_id(db, contract_id)
-        if not contract:
-            raise HTTPException(status_code=404, detail="合同不存在")
-        
-        # 调试信息
-        print(f"DEBUG: contract.file_path = {getattr(contract, 'file_path', 'NOT_FOUND')}")
-        
-        response_data = ContractResponse.model_validate(contract)
-        
-        # 调试信息
-        print(f"DEBUG: response_data.file_path = {getattr(response_data, 'file_path', 'NOT_FOUND')}")
-        
-        return BaseResponse(
-            success=True,
-            message="获取合同详情成功",
-            data=response_data
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取合同详情失败: {str(e)}")
-
 # ==================== 内容分块处理相关接口 ====================
 
-@router.get("/{contract_id}/content/status")
+@router.get("/{contract_id:int}/content/status")
 async def get_content_status_alias(
     contract_id: int,
     db: Session = Depends(get_db)
@@ -534,7 +507,7 @@ async def process_content_alias(
         "data": result
     }
 
-@router.get("/{contract_id}/content-status", response_model=BaseResponse, summary="获取内容处理状态")
+@router.get("/{contract_id:int}/content-status", response_model=BaseResponse, summary="获取内容处理状态")
 async def get_content_status(
     contract_id: int,
     db: Session = Depends(get_db)
@@ -551,7 +524,7 @@ async def get_content_status(
         
         # 使用内容处理服务检查状态
         content_service = ContentProcessingService()
-        status_info = await content_service.check_content_status(contract_id)
+        status_info = content_service.check_content_status(contract_id, db)
         
         response_data = ContentStatusResponse(
             status=status_info["status"],
@@ -613,7 +586,7 @@ async def process_contract_content(
         
         # 检查是否已经处理过
         if not force_reprocess:
-            status_info = await content_service.check_content_status(contract_id)
+            status_info = content_service.check_content_status(contract_id, db)
             if status_info["status"] == "completed":
                 return BaseResponse(
                     success=True,
@@ -627,10 +600,16 @@ async def process_contract_content(
                 )
         
         # 异步处理内容分块
-        async def process_content_background():
+        def process_content_background():
             try:
-                result = await content_service.process_contract_content(contract_id, force_reprocess)
-                print(f"内容分块处理完成: 合同ID={contract_id}, 分块数量={result['chunk_count']}")
+                # 获取新的数据库会话用于后台任务
+                from app.models.database import SessionLocal
+                bg_db = SessionLocal()
+                try:
+                    result = content_service.process_contract_content(contract_id, bg_db)
+                    print(f"内容分块处理完成: 合同ID={contract_id}, 分块数量={result.get('chunk_count', 0)}")
+                finally:
+                    bg_db.close()
             except Exception as e:
                 print(f"内容分块处理失败: 合同ID={contract_id}, 错误={str(e)}")
         
@@ -652,7 +631,7 @@ async def process_contract_content(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动内容分块处理失败: {str(e)}")
 
-@router.get("/{contract_id}/content/chunks", response_model=BaseResponse, summary="获取合同分块内容")
+@router.get("/{contract_id:int}/content/chunks", response_model=BaseResponse, summary="获取合同分块内容")
 async def get_contract_chunks(
     contract_id: int,
     page: int = Query(1, ge=1, description="页码"),
@@ -673,7 +652,7 @@ async def get_contract_chunks(
         "data": result["data"]
     }
 
-@router.get("/{contract_id}/content/search")
+@router.get("/{contract_id:int}/content/search")
 async def search_contract_chunks(
     contract_id: int,
     q: str = Query(..., description="搜索关键词"),
@@ -773,16 +752,24 @@ async def init_elasticsearch_indices():
         if not elasticsearch_service.is_available():
             raise HTTPException(status_code=503, detail="Elasticsearch服务不可用")
         
-        # 创建索引
+        # 检查索引是否存在
+        contracts_exists = bool(elasticsearch_service.client.indices.exists(index="contracts"))
+        contents_exists = bool(elasticsearch_service.client.indices.exists(index="contract_contents"))
+        
+        # 创建索引（如果不存在）
         contracts_created = elasticsearch_service.create_contracts_index()
         contents_created = elasticsearch_service.create_contract_contents_index()
+        
+        # 如果索引已存在或成功创建，都返回true
+        contracts_ready = contracts_exists or contracts_created
+        contents_ready = contents_exists or contents_created
         
         return BaseResponse(
             success=True,
             message="Elasticsearch索引初始化完成",
             data={
-                "contracts_index_created": contracts_created,
-                "contents_index_created": contents_created
+                "contracts_index_created": contracts_ready,
+                "contents_index_created": contents_ready
             }
         )
         
@@ -825,6 +812,145 @@ async def sync_contract_to_elasticsearch(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"同步到Elasticsearch失败: {str(e)}")
 
+@router.post("/elasticsearch/sync-all", response_model=BaseResponse, summary="批量同步所有合同数据到Elasticsearch")
+async def sync_all_contracts_to_elasticsearch(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    批量同步所有合同数据到Elasticsearch
+    
+    此接口会在后台异步处理所有合同的同步，避免长时间阻塞请求
+    """
+    try:
+        if not elasticsearch_service.is_available():
+            raise HTTPException(status_code=503, detail="Elasticsearch服务不可用")
+        
+        # 获取所有合同
+        all_contracts = contract_crud.get_all_contracts(db)
+        
+        if not all_contracts:
+            return BaseResponse(
+                success=True,
+                message="没有找到需要同步的合同",
+                data={"total_contracts": 0, "sync_status": "completed"}
+            )
+        
+        # 添加后台批量同步任务
+        background_tasks.add_task(batch_sync_contracts_background, [contract.id for contract in all_contracts], db)
+        
+        return BaseResponse(
+            success=True,
+            message=f"批量同步任务已启动，共 {len(all_contracts)} 个合同将在后台同步",
+            data={
+                "total_contracts": len(all_contracts),
+                "contract_ids": [contract.id for contract in all_contracts],
+                "sync_status": "started"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"启动批量同步失败: {str(e)}")
+
+@router.get("/elasticsearch/test-route", response_model=BaseResponse, summary="测试路由")
+async def test_route():
+    """测试路由是否正常工作"""
+    print("DEBUG: elasticsearch test-route 被调用了！")
+    return BaseResponse(
+        success=True,
+        message="测试路由工作正常 - 最新版本",
+        data={"test": "ok", "timestamp": "2025-08-06 00:30:00"}
+    )
+
+@router.get("/elasticsearch/sync-status", response_model=BaseResponse, summary="查询批量同步状态")
+async def get_elasticsearch_sync_status(
+    db: Session = Depends(get_db)
+):
+    """
+    查询所有合同的Elasticsearch同步状态
+    
+    返回每个合同的同步状态信息，包括：
+    - 合同基本信息
+    - Elasticsearch同步状态（从数据库字段读取）
+    - 数据库中的内容块数量
+    - 各种处理状态
+    """
+    try:
+        
+        # 获取所有合同
+        all_contracts = contract_crud.get_all_contracts(db)
+        
+        sync_status_list = []
+        total_synced = 0
+        total_unsynced = 0
+        
+        for contract in all_contracts:
+            # 从数据库字段获取Elasticsearch同步状态
+            es_sync_status = contract.elasticsearch_sync_status or "pending"
+            is_synced = es_sync_status == "completed"
+            
+            if is_synced:
+                total_synced += 1
+            else:
+                total_unsynced += 1
+            
+            # 获取数据库中的内容块数量
+            db_chunks = content_crud.get_content_by_contract(db, contract.id)
+            db_chunk_count = len(db_chunks)
+            
+            sync_status_list.append({
+                "contract_id": contract.id,
+                "contract_number": contract.contract_number,
+                "contract_name": contract.contract_name,
+                "is_synced": is_synced,
+                "elasticsearch_sync_status": es_sync_status,
+                "database_chunks": db_chunk_count,
+                "sync_complete": is_synced and db_chunk_count > 0,
+                "ocr_status": contract.ocr_status,
+                "content_status": contract.content_status,
+                "vector_status": contract.vector_status,
+                "created_at": contract.created_at.isoformat() if contract.created_at else None
+            })
+        
+        return BaseResponse(
+            success=True,
+            message="批量同步状态查询完成",
+            data={
+                "total_contracts": len(all_contracts),
+                "synced_contracts": total_synced,
+                "unsynced_contracts": total_unsynced,
+                "sync_completion_rate": f"{(total_synced / len(all_contracts) * 100):.1f}%" if all_contracts else "0%",
+                "contracts": sync_status_list
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询同步状态失败: {str(e)}")
+
+async def batch_sync_contracts_background(contract_ids: list[int], db: Session):
+    """后台批量同步合同数据到Elasticsearch"""
+    content_service = ContentProcessingService()
+    success_count = 0
+    failed_count = 0
+    
+    for contract_id in contract_ids:
+        try:
+            result = content_service.sync_to_elasticsearch(contract_id, db)
+            if result["status"] == "success":
+                success_count += 1
+            else:
+                failed_count += 1
+                print(f"同步合同 {contract_id} 失败: {result.get('message', '未知错误')}")
+        except Exception as e:
+            failed_count += 1
+            print(f"同步合同 {contract_id} 异常: {str(e)}")
+    
+    print(f"批量同步完成: 成功 {success_count} 个，失败 {failed_count} 个")
+
 @router.get("/elasticsearch/search", response_model=BaseResponse, summary="使用Elasticsearch搜索合同内容")
 async def elasticsearch_search_contracts(
     q: str = Query(..., description="搜索关键词"),
@@ -862,3 +988,235 @@ async def elasticsearch_search_contracts(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Elasticsearch搜索失败: {str(e)}")
+
+# 自动化处理流程API
+
+@router.get("/{contract_id:int}/automated-status", response_model=BaseResponse, summary="获取自动化处理状态")
+async def get_automated_processing_status(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取合同自动化处理的综合状态
+    
+    返回OCR处理、内容切片、Elasticsearch同步的状态信息
+    
+    - **contract_id**: 合同ID
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 获取内容切片状态
+        from app.models.models import ContractContent
+        chunk_count = db.query(ContractContent).filter(
+            ContractContent.contract_id == contract_id
+        ).count()
+        
+        # 获取Elasticsearch同步状态（从数据库字段读取）
+        es_sync_status = contract.elasticsearch_sync_status or "pending"
+        es_synced = es_sync_status == "completed"
+        
+        # 判断整体处理状态
+        ocr_completed = contract.ocr_status == "completed"
+        content_processed = chunk_count > 0
+        
+        if ocr_completed and content_processed and es_synced:
+            overall_status = "completed"
+        elif contract.ocr_status == "failed" or es_sync_status == "failed":
+            overall_status = "failed"
+        elif contract.ocr_status == "processing" or es_sync_status == "processing":
+            overall_status = "processing"
+        else:
+            overall_status = "pending"
+        
+        response_data = {
+            "contract_id": contract_id,
+            "overall_status": overall_status,
+            "ocr_status": contract.ocr_status or "pending",
+            "content_chunks": chunk_count,
+            "elasticsearch_synced": es_synced,
+            "processing_steps": {
+                "ocr_recognition": {
+                    "status": contract.ocr_status or "pending",
+                    "completed": ocr_completed
+                },
+                "content_chunking": {
+                    "status": "completed" if content_processed else "pending",
+                    "chunk_count": chunk_count,
+                    "completed": content_processed
+                },
+                "elasticsearch_sync": {
+                    "status": es_sync_status,
+                    "completed": es_synced
+                }
+            }
+        }
+        
+        return BaseResponse(
+            success=True,
+            message="获取自动化处理状态成功",
+            data=response_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取自动化处理状态失败: {str(e)}")
+
+@router.post("/{contract_id}/process-automated", response_model=BaseResponse, summary="自动化处理合同（OCR+切片+ES同步）")
+async def process_contract_automated(
+    contract_id: int,
+    background_tasks: BackgroundTasks,
+    force_reprocess: bool = Query(False, description="是否强制重新处理所有步骤"),
+    db: Session = Depends(get_db)
+):
+    """
+    自动化处理合同的完整流程：
+    1. OCR处理（如果未完成）
+    2. 内容切片处理
+    3. 同步到Elasticsearch
+    
+    - **contract_id**: 合同ID
+    - **force_reprocess**: 是否强制重新处理所有步骤（默认false）
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 检查文件是否存在
+        full_file_path = os.path.join(settings.UPLOAD_DIR, contract.file_path)
+        if not os.path.exists(full_file_path):
+            raise HTTPException(status_code=404, detail="合同文件不存在")
+        
+        # 添加后台自动化处理任务
+        background_tasks.add_task(process_automated_background, contract.id, contract.file_path, force_reprocess, db)
+        
+        return BaseResponse(
+            success=True,
+            message="自动化处理已开始，将依次执行OCR处理、内容切片和Elasticsearch同步",
+            data={
+                "contract_id": contract_id,
+                "processing_status": "started",
+                "force_reprocess": force_reprocess
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"启动自动化处理失败: {str(e)}")
+
+async def process_automated_background(contract_id: int, file_path: str, force_reprocess: bool, db: Session):
+    """
+    后台自动化处理任务：OCR -> 切片 -> ES同步
+    """
+    try:
+        print(f"开始自动化处理合同 {contract_id}")
+        
+        # 步骤1: OCR处理
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if force_reprocess or contract.ocr_status != "completed":
+            print(f"执行OCR处理 contract_id={contract_id}")
+            
+            # 更新状态为处理中
+            contract_crud.update_contract_status(db, contract_id, ocr_status="processing")
+            
+            # 执行OCR处理
+            success, html_path, text_path = await ocr_service.process_document(file_path)
+            
+            if success:
+                # 更新OCR成功状态
+                contract_crud.update_contract_status(
+                    db, contract_id,
+                    ocr_status="completed",
+                    content_status="completed",
+                    html_content_path=html_path,
+                    text_content_path=text_path
+                )
+                print(f"OCR处理完成 contract_id={contract_id}")
+            else:
+                # OCR失败，停止后续处理
+                contract_crud.update_contract_status(db, contract_id, ocr_status="failed")
+                print(f"OCR处理失败 contract_id={contract_id}")
+                return
+        else:
+            print(f"OCR已完成，跳过OCR步骤 contract_id={contract_id}")
+        
+        # 步骤2: 内容切片处理
+        print(f"执行内容切片处理 contract_id={contract_id}")
+        content_service = ContentProcessingService()
+        
+        # 检查是否需要重新处理切片
+        if force_reprocess:
+            # 删除现有切片
+            content_service.delete_contract_chunks(contract_id, db)
+        
+        # 执行切片处理
+        chunk_result = content_service.process_contract_content(contract_id, db)
+        
+        if chunk_result["status"] != "success":
+            print(f"内容切片处理失败 contract_id={contract_id}: {chunk_result['message']}")
+            return
+        
+        print(f"内容切片处理完成 contract_id={contract_id}, 生成 {chunk_result['chunk_count']} 个切片")
+        
+        # 步骤3: 同步到Elasticsearch
+        if elasticsearch_service.is_available():
+            print(f"执行Elasticsearch同步 contract_id={contract_id}")
+            
+            sync_result = content_service.sync_to_elasticsearch(contract_id, db)
+            
+            if sync_result["status"] == "success":
+                print(f"Elasticsearch同步完成 contract_id={contract_id}")
+                print(f"自动化处理全部完成 contract_id={contract_id}")
+            else:
+                print(f"Elasticsearch同步失败 contract_id={contract_id}: {sync_result['message']}")
+        else:
+            print(f"Elasticsearch服务不可用，跳过同步步骤 contract_id={contract_id}")
+            
+    except Exception as e:
+        print(f"自动化处理异常 contract_id={contract_id}: {str(e)}")
+        # 更新失败状态
+        try:
+            contract_crud.update_contract_status(db, contract_id, ocr_status="failed")
+        except:
+            pass
+
+# ==================== 通用路径（必须放在最后，避免拦截具体路径） ====================
+
+@router.get("/{contract_id:int}", response_model=BaseResponse, summary="获取合同详情")
+async def get_contract(
+    contract_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取指定合同的详细信息
+    
+    - **contract_id**: 合同ID
+    """
+    try:
+        contract = contract_crud.get_contract_by_id(db, contract_id)
+        if not contract:
+            raise HTTPException(status_code=404, detail="合同不存在")
+        
+        # 调试信息
+        print(f"DEBUG: contract.file_path = {getattr(contract, 'file_path', 'NOT_FOUND')}")
+        
+        response_data = ContractResponse.model_validate(contract)
+        
+        # 调试信息
+        print(f"DEBUG: response_data.file_path = {getattr(response_data, 'file_path', 'NOT_FOUND')}")
+        
+        return BaseResponse(
+            success=True,
+            message="获取合同详情成功",
+            data=response_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取合同详情失败: {str(e)}")

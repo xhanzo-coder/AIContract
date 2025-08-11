@@ -1,6 +1,6 @@
 # 数据模型包
 from .database import Base, engine, SessionLocal, get_db
-from .models import Contract, ContractContent, ContractField, SearchLog, SystemConfig
+from .models import Contract, ContractContent, ContractField, SearchLog, SystemConfig, QASession
 
 __all__ = [
     "Base",
@@ -11,5 +11,6 @@ __all__ = [
     "ContractContent", 
     "ContractField",
     "SearchLog",
-    "SystemConfig"
+    "SystemConfig",
+    "QASession"
 ]

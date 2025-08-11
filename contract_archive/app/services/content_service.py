@@ -305,7 +305,16 @@ class ContentProcessingService:
                         "highlighted_text": highlighted_text,
                         "chunk_type": result["chunk_type"],
                         "chunk_size": len(result["content_text"]),
-                        "relevance_score": result["score"]
+                        "relevance_score": result["score"],
+                        # 合同基础信息
+                        "contract_id": result.get("contract_id"),
+                        "contract_number": result.get("contract_number"),
+                        "contract_name": result.get("contract_name"),
+                        # 新添加的文档元信息字段
+                        "file_name": result.get("file_name"),
+                        "file_format": result.get("file_format"),
+                        "upload_time": result.get("upload_time"),
+                        "contract_type": result.get("contract_type")
                     }
                     chunk_list.append(chunk_dict)
                 
@@ -414,6 +423,11 @@ class ContentProcessingService:
         """
         try:
             if not elasticsearch_service.is_available():
+                # 更新状态为失败
+                contract = db.query(Contract).filter(Contract.id == contract_id).first()
+                if contract:
+                    contract.elasticsearch_sync_status = "failed"
+                    db.commit()
                 return {
                     "status": "error",
                     "message": "Elasticsearch服务不可用",
@@ -428,6 +442,10 @@ class ContentProcessingService:
                     "message": "合同不存在",
                     "contract_id": contract_id
                 }
+            
+            # 更新状态为处理中
+            contract.elasticsearch_sync_status = "processing"
+            db.commit()
             
             # 同步合同基本信息
             contract_data = {
@@ -462,17 +480,29 @@ class ContentProcessingService:
                 
                 contract_info = {
                     "contract_number": contract.contract_number,
-                    "contract_name": contract.contract_name
+                    "contract_name": contract.contract_name,
+                    "file_name": contract.file_name,
+                    "file_format": contract.file_format,
+                    "upload_time": contract.upload_time,
+                    "contract_type": contract.contract_type
                 }
                 
                 if elasticsearch_service.index_content_chunk(chunk_data, contract_info):
                     chunks_synced += 1
             
-            logger.info(f"同步到Elasticsearch完成 contract_id={contract_id}, chunks={chunks_synced}")
+            # 检查同步结果并更新状态
+            if contract_synced and chunks_synced == len(chunks):
+                contract.elasticsearch_sync_status = "completed"
+                logger.info(f"同步到Elasticsearch完成 contract_id={contract_id}, chunks={chunks_synced}")
+            else:
+                contract.elasticsearch_sync_status = "failed"
+                logger.warning(f"同步到Elasticsearch部分失败 contract_id={contract_id}, chunks_synced={chunks_synced}, total={len(chunks)}")
+            
+            db.commit()
             
             return {
-                "status": "success",
-                "message": "同步完成",
+                "status": "success" if contract.elasticsearch_sync_status == "completed" else "partial",
+                "message": "同步完成" if contract.elasticsearch_sync_status == "completed" else "部分同步失败",
                 "contract_id": contract_id,
                 "contract_synced": contract_synced,
                 "chunks_synced": chunks_synced,
@@ -481,6 +511,15 @@ class ContentProcessingService:
             
         except Exception as e:
             logger.error(f"同步到Elasticsearch失败 contract_id={contract_id}: {str(e)}")
+            # 更新状态为失败
+            try:
+                contract = db.query(Contract).filter(Contract.id == contract_id).first()
+                if contract:
+                    contract.elasticsearch_sync_status = "failed"
+                    db.commit()
+            except Exception as db_error:
+                logger.error(f"更新同步状态失败: {str(db_error)}")
+            
             return {
                 "status": "error",
                 "message": f"同步失败: {str(e)}",

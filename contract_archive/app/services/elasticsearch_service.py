@@ -85,6 +85,10 @@ class ElasticsearchService:
                         "contract_id": {"type": "integer"},
                         "contract_number": {"type": "keyword"},
                         "contract_name": {"type": "keyword"},
+                        "file_name": {"type": "keyword"},
+                        "file_format": {"type": "keyword"},
+                        "upload_time": {"type": "date"},
+                        "contract_type": {"type": "keyword"},
                         "chunk_index": {"type": "integer"},
                         "content_text": {
                             "type": "text",
@@ -169,6 +173,10 @@ class ElasticsearchService:
                         "contract_id": {"type": "integer"},
                         "contract_number": {"type": "keyword"},
                         "contract_name": {"type": "keyword"},
+                        "file_name": {"type": "keyword"},
+                        "file_format": {"type": "keyword"},
+                        "upload_time": {"type": "date"},
+                        "contract_type": {"type": "keyword"},
                         "chunk_index": {"type": "integer"},
                         "content_text": {
                             "type": "text",
@@ -245,6 +253,10 @@ class ElasticsearchService:
                 "contract_id": chunk_data["contract_id"],
                 "contract_number": contract_info["contract_number"],
                 "contract_name": contract_info["contract_name"],
+                "file_name": contract_info.get("file_name", ""),
+                "file_format": contract_info.get("file_format", ""),
+                "upload_time": contract_info.get("upload_time"),
+                "contract_type": contract_info.get("contract_type", ""),
                 "chunk_index": chunk_data["chunk_index"],
                 "content_text": chunk_data["content_text"],
                 "chunk_type": chunk_data.get("chunk_type", "text"),
@@ -267,71 +279,161 @@ class ElasticsearchService:
             logger.error(f"索引内容块失败: {str(e)}")
             return False
     
-    def search_contracts(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """搜索合同文档"""
+    async def search_contracts(self, query: str, search_type: str = "keyword", size: int = 10) -> Dict[str, Any]:
+        """异步版本的搜索合同方法，用于qa_sessions.py"""
+        # 先搜索合同
+        contract_results = self.search_contracts_sync(query, search_type, size)
+        
+        # 如果是hybrid搜索，还需要搜索内容块
+        if search_type == "hybrid" and contract_results["hits"]["hits"]:
+            # 获取找到的合同ID
+            contract_ids = [hit["_source"]["contract_id"] for hit in contract_results["hits"]["hits"]]
+            
+            # 搜索相关内容块
+            content_results = self.search_content(query, contract_ids, size)
+            
+            # 合并结果，将内容块结果添加到合同结果中
+            combined_hits = []
+            
+            # 添加合同结果
+            for hit in contract_results["hits"]["hits"]:
+                combined_hits.append(hit)
+            
+            # 添加内容块结果（转换格式）
+            for content in content_results[:size//2]:  # 限制内容块数量
+                content_hit = {
+                    "_source": {
+                        "contract_id": content["contract_id"],
+                        "chunk_id": content["chunk_id"],
+                        "contract_name": content["contract_name"],
+                        "contract_number": content["contract_number"],
+                        "content_text": content["content_text"][:200],  # 截取前200字符
+                        "chunk_index": content["chunk_index"]
+                    },
+                    "_score": content["score"],
+                    "highlight": content.get("highlights", {})
+                }
+                combined_hits.append(content_hit)
+            
+            # 更新结果
+            contract_results["hits"]["hits"] = combined_hits[:size]
+            contract_results["hits"]["total"]["value"] = len(combined_hits)
+        
+        return contract_results
+    
+    def search_contracts_sync(self, query: str, search_type: str = "keyword", size: int = 10) -> Dict[str, Any]:
+        """同步版本的搜索合同方法"""
         if not self.is_available():
             logger.warning("Elasticsearch不可用，返回空结果")
-            return []
+            return {"hits": {"hits": [], "total": {"value": 0}}}
         
         try:
-            # 构建搜索查询
-            search_body = {
-                "query": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": [
-                            "contract_name^3",  # 合同名称权重最高
-                            "contract_number^2", # 合同编号权重次之
-                            "keywords^2",       # 关键词权重次之
-                            "summary",          # 摘要权重正常
-                            "contract_type"     # 类型权重正常
-                        ],
-                        "type": "best_fields",
-                        "fuzziness": "AUTO"
-                    }
-                },
-                "highlight": {
-                    "fields": {
-                        "contract_name": {},
-                        "keywords": {},
-                        "summary": {}
-                    }
-                },
-                "size": limit
-            }
+            # 根据搜索类型构建不同的查询（复用之前的逻辑）
+            if search_type == "semantic":
+                search_body = {
+                    "query": {
+                        "multi_match": {
+                            "query": query,
+                            "fields": [
+                                "contract_name^3",
+                                "keywords^2",
+                                "summary^2",
+                                "contract_type"
+                            ],
+                            "type": "cross_fields",
+                            "fuzziness": "AUTO"
+                        }
+                    },
+                    "highlight": {
+                        "fields": {
+                            "contract_name": {},
+                            "keywords": {},
+                            "summary": {}
+                        }
+                    },
+                    "size": size
+                }
+            elif search_type == "hybrid":
+                search_body = {
+                    "query": {
+                        "bool": {
+                            "should": [
+                                {
+                                    "multi_match": {
+                                        "query": query,
+                                        "fields": [
+                                            "contract_name^3",
+                                            "contract_number^2",
+                                            "keywords^2"
+                                        ],
+                                        "type": "best_fields",
+                                        "boost": 2.0
+                                    }
+                                },
+                                {
+                                    "multi_match": {
+                                        "query": query,
+                                        "fields": ["summary", "contract_type"],
+                                        "type": "cross_fields",
+                                        "fuzziness": "AUTO",
+                                        "boost": 1.0
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "highlight": {
+                        "fields": {
+                            "contract_name": {},
+                            "keywords": {},
+                            "summary": {}
+                        }
+                    },
+                    "size": size
+                }
+            else:
+                search_body = {
+                    "query": {
+                        "multi_match": {
+                            "query": query,
+                            "fields": [
+                                "contract_name^3",
+                                "contract_number^2",
+                                "keywords^2",
+                                "summary",
+                                "contract_type"
+                            ],
+                            "type": "best_fields",
+                            "fuzziness": "AUTO"
+                        }
+                    },
+                    "highlight": {
+                        "fields": {
+                            "contract_name": {},
+                            "keywords": {},
+                            "summary": {}
+                        }
+                    },
+                    "size": size
+                }
             
-            # 执行搜索
             response = self.client.search(
                 index="contracts",
                 body=search_body
             )
             
-            # 处理结果
-            results = []
-            for hit in response["hits"]["hits"]:
-                result = {
-                    "contract_id": hit["_source"]["contract_id"],
-                    "contract_number": hit["_source"]["contract_number"],
-                    "contract_name": hit["_source"]["contract_name"],
-                    "contract_type": hit["_source"].get("contract_type"),
-                    "file_name": hit["_source"]["file_name"],
-                    "score": hit["_score"],
-                    "highlights": hit.get("highlight", {})
-                }
-                results.append(result)
-            
-            logger.info(f"搜索合同完成，找到 {len(results)} 个结果")
-            return results
+            logger.info(f"搜索合同完成，找到 {response['hits']['total']['value']} 个结果")
+            return response
             
         except Exception as e:
             logger.error(f"搜索合同失败: {str(e)}")
-            return []
+            return {"hits": {"hits": [], "total": {"value": 0}}}
     
-    def search_content(self, query: str, contract_ids: List[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    def search_content(self, query: str, contract_ids: List[int] = None, limit: int = 20) -> Dict[str, Any]:
         """搜索内容块"""
         if not self.is_available():
             logger.warning("Elasticsearch不可用，返回空结果")
-            return []
+            return {"hits": {"hits": [], "total": {"value": 0}}}
         
         try:
             # 构建搜索查询
@@ -340,11 +442,15 @@ class ElasticsearchService:
                     "bool": {
                         "must": [
                             {
-                                "match": {
-                                    "content_text": {
-                                        "query": query,
-                                        "fuzziness": "AUTO"
-                                    }
+                                "multi_match": {
+                                    "query": query,
+                                    "fields": [
+                                        "content_text^2",
+                                        "contract_name",
+                                        "contract_number"
+                                    ],
+                                    "type": "best_fields",
+                                    "fuzziness": "AUTO"
                                 }
                             }
                         ]
@@ -355,7 +461,9 @@ class ElasticsearchService:
                         "content_text": {
                             "fragment_size": 150,
                             "number_of_fragments": 3
-                        }
+                        },
+                        "contract_name": {},
+                        "contract_number": {}
                     }
                 },
                 "sort": [
@@ -367,6 +475,12 @@ class ElasticsearchService:
             
             # 如果指定了合同ID，添加过滤条件
             if contract_ids:
+                if "bool" not in search_body["query"]:
+                    search_body["query"] = {
+                        "bool": {
+                            "must": [search_body["query"]]
+                        }
+                    }
                 search_body["query"]["bool"]["filter"] = [
                     {"terms": {"contract_id": contract_ids}}
                 ]
@@ -377,28 +491,12 @@ class ElasticsearchService:
                 body=search_body
             )
             
-            # 处理结果
-            results = []
-            for hit in response["hits"]["hits"]:
-                result = {
-                    "chunk_id": hit["_source"]["chunk_id"],
-                    "contract_id": hit["_source"]["contract_id"],
-                    "contract_number": hit["_source"]["contract_number"],
-                    "contract_name": hit["_source"]["contract_name"],
-                    "chunk_index": hit["_source"]["chunk_index"],
-                    "content_text": hit["_source"]["content_text"],
-                    "chunk_type": hit["_source"]["chunk_type"],
-                    "score": hit["_score"],
-                    "highlights": hit.get("highlight", {})
-                }
-                results.append(result)
-            
-            logger.info(f"搜索内容完成，找到 {len(results)} 个结果")
-            return results
+            logger.info(f"搜索内容完成，找到 {response['hits']['total']['value']} 个结果")
+            return response
             
         except Exception as e:
             logger.error(f"搜索内容失败: {str(e)}")
-            return []
+            return {"hits": {"hits": [], "total": {"value": 0}}}
     
     def _extract_keywords(self, text: str, topK: int = 10) -> List[str]:
         """提取关键词"""

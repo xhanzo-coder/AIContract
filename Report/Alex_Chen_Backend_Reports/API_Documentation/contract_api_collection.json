@@ -13,6 +13,16 @@
     },
     {
       "key": "contract_id",
+      "value": "20",
+      "type": "string"
+    },
+    {
+      "key": "session_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "message_id",
       "value": "",
       "type": "string"
     }
@@ -190,7 +200,7 @@
               "",
               "pm.test(\"Contract ID matches\", function () {",
               "    var jsonData = pm.response.json();",
-              "    var expectedId = parseInt(pm.collectionVariables.get(\"contract_id\"));",
+              "    var expectedId = 20;",
               "    pm.expect(jsonData.id).to.eql(expectedId);",
               "});"
             ],
@@ -320,7 +330,7 @@
               "",
               "pm.test(\"Contract ID matches\", function () {",
               "    var jsonData = pm.response.json();",
-              "    var expectedId = parseInt(pm.collectionVariables.get(\"contract_id\"));",
+              "    var expectedId = 20;",
               "    pm.expect(jsonData.contract_id).to.eql(expectedId);",
               "});"
             ],
@@ -444,7 +454,67 @@
       }
     },
     {
-      "name": "10. 搜索分块",
+      "name": "10. 获取自动化处理状态",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has automated processing status\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('contract_id');",
+              "    pm.expect(jsonData.data).to.have.property('overall_status');",
+              "    pm.expect(jsonData.data).to.have.property('processing_steps');",
+              "});",
+              "",
+              "pm.test(\"Processing steps have required fields\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    var steps = jsonData.data.processing_steps;",
+              "    pm.expect(steps).to.have.property('ocr_recognition');",
+              "    pm.expect(steps).to.have.property('content_chunking');",
+              "    pm.expect(steps).to.have.property('elasticsearch_sync');",
+              "    ",
+              "    // 检查每个步骤的状态",
+              "    pm.expect(steps.ocr_recognition).to.have.property('status');",
+              "    pm.expect(steps.ocr_recognition).to.have.property('completed');",
+              "    pm.expect(steps.content_chunking).to.have.property('status');",
+              "    pm.expect(steps.content_chunking).to.have.property('completed');",
+              "    pm.expect(steps.elasticsearch_sync).to.have.property('status');",
+              "    pm.expect(steps.elasticsearch_sync).to.have.property('completed');",
+              "});",
+              "",
+              "pm.test(\"Overall status is valid\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    var validStatuses = ['pending', 'processing', 'completed', 'failed'];",
+              "    pm.expect(validStatuses).to.include(jsonData.data.overall_status);",
+              "    console.log('Overall processing status: ' + jsonData.data.overall_status);",
+              "    console.log('OCR status: ' + jsonData.data.processing_steps.ocr_recognition.status);",
+              "    console.log('Content chunks: ' + jsonData.data.content_chunks);",
+              "    console.log('Elasticsearch synced: ' + jsonData.data.elasticsearch_synced);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/automated-status",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "automated-status"]
+        },
+        "description": "获取合同自动化处理的综合状态（OCR识别、文档切块、Elasticsearch同步）"
+      }
+    },
+    {
+      "name": "11. 搜索分块",
       "event": [
         {
           "listen": "test",
@@ -512,7 +582,7 @@
       }
     },
     {
-      "name": "11. Elasticsearch 健康检查",
+      "name": "12. Elasticsearch 健康检查",
       "event": [
         {
           "listen": "test",
@@ -552,7 +622,7 @@
       }
     },
     {
-      "name": "12. 初始化 Elasticsearch 索引",
+      "name": "13. 初始化 Elasticsearch 索引",
       "event": [
         {
           "listen": "test",
@@ -593,7 +663,7 @@
       }
     },
     {
-      "name": "13. 同步合同到 Elasticsearch",
+      "name": "14. 同步合同到 Elasticsearch",
         "event": [
           {
             "listen": "test",
@@ -636,7 +706,66 @@
         }
     },
     {
-      "name": "14. 全局合同搜索",
+      "name": "15. 自动化处理合同（OCR+切片+ES同步）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Automated processing started\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('message');",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('contract_id');",
+              "    pm.expect(jsonData.data).to.have.property('processing_status');",
+              "});",
+              "",
+              "pm.test(\"Processing steps initiated\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data).to.have.property('steps_initiated');",
+              "    pm.expect(jsonData.data.steps_initiated).to.be.an('array');",
+              "    pm.expect(jsonData.data.steps_initiated).to.include('OCR识别');",
+              "    pm.expect(jsonData.data.steps_initiated).to.include('文档切块');",
+              "    pm.expect(jsonData.data.steps_initiated).to.include('Elasticsearch同步');",
+              "    console.log('Automated processing started for contract: ' + jsonData.data.contract_id);",
+              "    console.log('Processing steps: ' + JSON.stringify(jsonData.data.steps_initiated));",
+              "});",
+              "",
+              "// 自动等待5秒后查询自动化处理状态",
+              "setTimeout(function(){",
+              "    postman.setNextRequest(\"10. 获取自动化处理状态\");",
+              "}, 5000);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"force_reprocess\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/contracts/{{contract_id}}/process-automated",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "contracts", "{{contract_id}}", "process-automated"]
+        },
+        "description": "一键自动化处理合同：OCR识别 → 文档切块 → Elasticsearch同步"
+      }
+    },
+    {
+      "name": "16. 全局合同搜索",
       "event": [
         {
           "listen": "test",
@@ -710,7 +839,7 @@
       }
     },
     {
-      "name": "15. 职业病危害因素搜索示例",
+      "name": "17. 职业病危害因素搜索示例",
       "event": [
         {
           "listen": "test",
@@ -789,7 +918,7 @@
       }
     },
     {
-      "name": "16. 删除合同 (谨慎使用)",
+      "name": "18. 删除合同 (谨慎使用)",
       "event": [
         {
           "listen": "test",
@@ -831,6 +960,256 @@
         },
         "description": "删除指定合同及相关文件（谨慎使用）"
       }
+    },
+    {
+      "name": "19. 提问并获取AI回答",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has required fields', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('success');",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('session_id');",
+              "    pm.expect(jsonData.data).to.have.property('message_id');",
+              "    pm.expect(jsonData.data).to.have.property('answer');",
+              "});",
+              "",
+              "// 保存session_id和message_id供后续请求使用",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('session_id', jsonData.data.session_id);",
+              "    pm.collectionVariables.set('message_id', jsonData.data.message_id);",
+              "    console.log('Session ID saved: ' + jsonData.data.session_id);",
+              "    console.log('Message ID saved: ' + jsonData.data.message_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"请问这个合同的主要内容是什么？\",\n  \"session_id\": null,\n  \"search_method\": \"hybrid\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/qa/ask",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "qa", "ask"]
+        },
+        "description": "向AI提问并获取基于合同内容的回答"
+      }
+    },
+    {
+      "name": "20. 获取会话列表",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has required fields', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('success');",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('sessions');",
+              "    pm.expect(jsonData.data.sessions).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/qa/sessions?page=1&size=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "qa", "sessions"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "size",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "获取用户的问答会话列表"
+      }
+    },
+    {
+      "name": "21. 获取会话历史记录",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 检查session_id是否存在",
+              "var sessionId = pm.collectionVariables.get('session_id');",
+              "if (!sessionId) {",
+              "    console.warn('Warning: session_id not set. Please run ask question request first.');",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has required fields', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('success');",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('session_id');",
+              "    pm.expect(jsonData.data).to.have.property('messages');",
+              "    pm.expect(jsonData.data.messages).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/qa/sessions/{{session_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "qa", "sessions", "{{session_id}}"]
+        },
+        "description": "获取指定会话的完整历史记录"
+      }
+    },
+    {
+      "name": "22. 提交用户反馈",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 检查session_id和message_id是否存在",
+              "var sessionId = pm.collectionVariables.get('session_id');",
+              "var messageId = pm.collectionVariables.get('message_id');",
+              "if (!sessionId || !messageId) {",
+              "    console.warn('Warning: session_id or message_id not set. Please run ask question request first.');",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has success field', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('success');",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feedback_type\": \"like\",\n  \"comment\": \"回答很有帮助\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/qa/sessions/{{session_id}}/messages/{{message_id}}/feedback",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "qa", "sessions", "{{session_id}}", "messages", "{{message_id}}", "feedback"]
+        },
+        "description": "对AI回答提交用户反馈（点赞/点踩/评论）"
+      }
+    },
+    {
+      "name": "23. 删除会话",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 检查session_id是否存在",
+              "var sessionId = pm.collectionVariables.get('session_id');",
+              "if (!sessionId) {",
+              "    console.warn('Warning: session_id not set. Please run ask question request first.');",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response has success field', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('success');",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "});",
+              "",
+              "// 清除保存的session_id",
+              "pm.collectionVariables.unset('session_id');",
+              "pm.collectionVariables.unset('message_id');",
+              "console.log('Session variables cleared.');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/qa/sessions/{{session_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "qa", "sessions", "{{session_id}}"]
+        },
+        "description": "删除指定的问答会话及其所有消息记录"
+      }
     }
   ],
   "event": [
@@ -845,7 +1224,7 @@
           "",
           "// 检查contract_id是否存在（除了健康检查、上传接口和全局搜索接口）",
           "var requestName = pm.info.requestName;",
-          "var needsContractId = ['4. 获取合同详情', '5. 查询OCR状态', '6. 手动触发OCR处理 (GLM-4.1V)', '7. 获取内容状态', '8. 处理内容分块', '9. 获取分块列表', '10. 搜索分块', '16. 删除合同 (谨慎使用)'];",
+          "var needsContractId = ['4. 获取合同详情', '5. 查询OCR状态', '6. 手动触发OCR处理 (GLM-4.1V)', '7. 获取内容状态', '8. 处理内容分块', '9. 获取分块列表', '10. 获取自动化处理状态', '11. 搜索分块', '14. 同步合同到 Elasticsearch', '15. 自动化处理合同（OCR+切片+ES同步）', '18. 删除合同 (谨慎使用)'];",
           "",
           "if (needsContractId.includes(requestName)) {",
           "    var contractId = pm.collectionVariables.get('contract_id');",

@@ -226,4 +226,55 @@
     </content>
     <tags>#其他</tags>
   </item>
+  <item id="mem_1754541227290_e3d6xbm4t" time="2025/08/07 12:33">
+    <content>
+      实现了合同自动化处理功能的完整后端支持：
+    
+      1. **修改upload_contract接口**：文件上传后自动触发完整的自动化处理流程（OCR识别→文档切块→Elasticsearch同步），替换了原来只触发OCR的逻辑
+    
+      2. **新增get_automated_processing_status接口**：GET /api/v1/contracts/{contract_id}/automated-status，提供自动化处理的综合状态查询，包括：
+      - 整体处理状态（pending/processing/completed/failed）
+      - OCR识别状态和完成情况
+      - 内容切片状态和分块数量
+      - Elasticsearch同步状态
+      - 详细的处理步骤信息
+    
+      3. **保留所有手动触发接口**：
+      - process_contract_ocr：手动OCR处理
+      - process_contract_content：手动内容分块
+      - sync_contract_to_elasticsearch：手动ES同步
+      - process_contract_automated：手动触发完整自动化流程
+    
+      4. **更新API文档**：在contract_api_collection.json中添加了新的自动化状态查询接口和自动化处理接口，重新编号了所有API，更新了前置脚本的contract_id检查列表
+    
+      技术实现：利用现有的ContentProcessingService和ElasticsearchService，通过检查chunk数量和ES搜索结果来判断各步骤完成状态，提供了完整的自动化处理状态监控能力。
+    </content>
+    <tags>#流程管理</tags>
+  </item>
+  <item id="mem_1754545692962_f4qbldn5a" time="2025/08/07 13:48">
+    <content>
+      成功修复了合同自动化处理状态查询API接口的bug。问题是在get_automated_processing_status接口中调用了不存在的get_chunk_count方法，修复方案是直接使用数据库查询获取分块数量：
+    
+      修复前代码：
+      content_service = ContentProcessingService()
+      chunk_count = content_service.get_chunk_count(contract_id, db)
+    
+      修复后代码：
+      from app.models.models import ContractContent
+      chunk_count = db.query(ContractContent).filter(
+      ContractContent.contract_id == contract_id
+      ).count()
+    
+      测试结果：
+      1. 自动化状态查询接口 /api/v1/contracts/22/automated-status 正常返回详细状态信息
+      2. 自动化处理接口 /api/v1/contracts/22/process-automated 成功触发后台处理
+      3. API返回包含OCR状态、内容切片数量、Elasticsearch同步状态等完整信息
+    
+      修复要点：
+      - ContentProcessingService类中没有get_chunk_count方法
+      - 应该直接查询ContractContent表获取分块数量
+      - 导入路径为app.models.models而不是app.models.contract
+    </content>
+    <tags>#其他</tags>
+  </item>
 </memory>

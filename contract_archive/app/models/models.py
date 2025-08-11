@@ -29,6 +29,7 @@ class Contract(Base):
     ocr_status = Column(String(20), nullable=True, default="pending", comment="OCR识别状态：pending/processing/completed/failed，默认pending")
     content_status = Column(String(20), nullable=True, default="pending", comment="内容提取状态：pending/processing/completed/failed，默认pending")
     vector_status = Column(String(20), nullable=True, default="pending", comment="向量化状态：pending/processing/completed/failed，默认pending")
+    elasticsearch_sync_status = Column(String(20), nullable=True, default="pending", comment="Elasticsearch同步状态：pending/processing/completed/failed，默认pending")
     
     # 处理结果文件路径
     html_content_path = Column(String(500), nullable=True, comment="HTML格式内容文件路径，OCR后生成的结构化内容")
@@ -110,6 +111,39 @@ class SearchLog(Base):
     
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="搜索时间，默认当前时间，用于使用统计和趋势分析")
+
+class QASession(Base):
+    """问答会话表"""
+    __tablename__ = "qa_sessions"
+    
+    # 主键
+    id = Column(Integer, primary_key=True, index=True, comment="问答记录唯一标识符，主键，自增")
+    
+    # 会话信息
+    session_id = Column(String(100), nullable=False, index=True, comment="会话ID，用于关联同一次对话的多个问答")
+    session_title = Column(String(200), nullable=True, comment="会话标题，基于首个问题生成")
+    message_order = Column(Integer, nullable=False, comment="消息在会话中的顺序，从1开始")
+    
+    # 问答内容
+    question = Column(Text, nullable=False, comment="用户提出的问题")
+    answer = Column(Text, nullable=True, comment="AI生成的回答")
+    
+    # 搜索相关
+    source_contracts = Column(JSON, nullable=True, comment="相关合同ID列表，JSON格式")
+    source_chunks = Column(JSON, nullable=True, comment="相关内容块ID列表，JSON格式")
+    elasticsearch_results = Column(JSON, nullable=True, comment="Elasticsearch搜索结果，JSON格式")
+    search_method = Column(String(20), nullable=True, comment="搜索方法：keyword/semantic/hybrid")
+    
+    # AI回答相关
+    ai_response_type = Column(String(20), nullable=True, comment="AI回答类型：direct/search_based/mixed")
+    response_time = Column(Float, nullable=True, comment="响应时间，单位毫秒")
+    
+    # 用户反馈
+    user_feedback = Column(String(20), nullable=True, comment="用户反馈：helpful/not_helpful")
+    
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="问答创建时间，默认当前时间")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="记录最后更新时间，默认当前时间，自动更新")
 
 class SystemConfig(Base):
     """系统配置表"""

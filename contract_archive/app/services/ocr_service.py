@@ -29,7 +29,7 @@ class GLMOCRService:
         self.api_key = "sk-jvzbrgzerhfbtetfuapjhwjwpzuwhfphiisvylabwesvzzza"
         self.base_url = "https://api.siliconflow.cn/v1"
         self.model = "THUDM/GLM-4.1V-9B-Thinking"
-        self.max_workers = 3  # 并发处理数量
+        self.max_workers = 5  # 并发处理数量，提高识别速度
         self.print_lock = threading.Lock()
         
         # 初始化OpenAI客户端
@@ -79,11 +79,16 @@ class GLMOCRService:
     
     def _call_glm4v_api(self, image_base64: str, page_num: int, total_pages: int) -> Optional[str]:
         """调用GLM-4.1V API进行OCR识别"""
-        prompt = f"""<think>
-这是第{page_num}/{total_pages}页的OCR识别任务。我需要立即输出HTML格式的文字内容，不进行任何思考分析。直接识别图片中的文字并转换为HTML标签输出。
-</think>
+        prompt = f"""请识别图片中的文字内容并转换为HTML格式。
 
-OCR第{page_num}/{total_pages}页，HTML输出："""
+要求：
+1. 只输出HTML代码，不要任何解释
+2. 不要输出思考过程或分析
+3. 不要使用<think>标签
+4. 空白页直接返回空字符串
+5. 表格用<table>标签，标题用<h1>-<h3>标签
+
+直接开始输出HTML："""
         
         try:
             completion = self.client.chat.completions.create(
@@ -91,7 +96,7 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
                 messages=[
                     {
                         "role": "system",
-                        "content": "OCR助手。禁止思考，直接输出HTML。快速识别，立即回答。"
+                        "content": "你是一个专业的OCR识别工具。只输出HTML格式的识别结果，绝对不要输出任何思考过程、分析、解释或<think>标签内容。对于空白页面，直接返回空字符串。严格按照用户要求输出。"
                     },
                     {
                         "role": "user",
@@ -109,8 +114,8 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
                         ]
                     }
                 ],
-                max_tokens=4000,
-                temperature=0.1
+                max_tokens=3000,
+                temperature=0.01
             )
             
             return completion.choices[0].message.content
@@ -127,7 +132,8 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
             image_base64 = self._image_to_base64(image_path)
             content = self._call_glm4v_api(image_base64, page_num, total_pages)
             
-            self._safe_log(f"第{page_num}页处理完成")
+            # 减少详细日志输出，只在出错时记录
+            pass
             
             return {
                 'page_num': page_num,
@@ -148,6 +154,41 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
         if not content:
             return ""
         
+        # 检查是否为空白页面或只有页码的页面
+        content_text = re.sub(r'<[^>]+>', '', content).strip()
+        if not content_text or re.match(r'^\s*\d+\s*$', content_text):
+            return ""
+        
+        # 移除GLM-4.1V-9B-Thinking模型的思考过程标记
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+        content = re.sub(r'<thinking>.*?</thinking>', '', content, flags=re.DOTALL)
+        
+        # 移除模型思考过程的常见模式
+        content = re.sub(r'我需要.*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'让我.*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'现在我.*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'接下来.*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'首先.*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'然后.*?(?=<|$)', '', content, flags=re.DOTALL)
+        
+        # 移除重复的附件标题和结构调整注释
+        content = re.sub(r'《再生资源列表、处理价格》\s*(?=《再生资源列表、处理价格》)', '', content, flags=re.DOTALL)
+        content = re.sub(r'附件.*?《再生资源列表、处理价格》\s*(?=附件)', '', content, flags=re.DOTALL)
+        
+        # 移除HTML结构调整的思考过程
+        content = re.sub(r'<!--.*?-->', '', content, flags=re.DOTALL)
+        content = re.sub(r'// 调整.*?(?=\n|$)', '', content, flags=re.MULTILINE)
+        content = re.sub(r'尝试.*?结构.*?(?=<|$)', '', content, flags=re.DOTALL)
+        
+        # 移除思考过程相关的内容（包括括号内的解释）
+        content = re.sub(r'（因为.*?所以.*?）', '', content, flags=re.DOTALL)
+        content = re.sub(r'\(因为.*?所以.*?\)', '', content, flags=re.DOTALL)
+        content = re.sub(r'```[^`]*因为.*?所以.*?[^`]*```', '', content, flags=re.DOTALL)
+        
+        # 移除空白页判断的思考过程
+        content = re.sub(r'.*?空白页.*?返回空.*?字符串.*?', '', content, flags=re.DOTALL | re.IGNORECASE)
+        content = re.sub(r'.*?图片.*?空白.*?返回.*?', '', content, flags=re.DOTALL | re.IGNORECASE)
+        
         # 移除Markdown代码块标记
         content = re.sub(r'^```html?\s*\n?', '', content, flags=re.IGNORECASE)
         content = re.sub(r'\n?```\s*$', '', content)
@@ -160,25 +201,48 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
         content = re.sub(r'<\|begin_of_text\|>', '', content)
         content = re.sub(r'<\|end_of_text\|>', '', content)
         
-        # 移除页码相关内容
+        # 移除未闭合或错误的HTML标签
+        content = re.sub(r'<table[^>]*>(?!.*</table>).*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'<div[^>]*>(?!.*</div>).*?(?=<|$)', '', content, flags=re.DOTALL)
+        content = re.sub(r'<svg[^>]*>(?!.*</svg>).*?(?=<|$)', '', content, flags=re.DOTALL)
+        
+        # 移除页码相关内容（更全面的匹配）
         content = re.sub(r'<p>\s*\d+\s*</p>', '', content)
         content = re.sub(r'<div>\s*\d+\s*</div>', '', content)
+        content = re.sub(r'<span>\s*\d+\s*</span>', '', content)
+        content = re.sub(r'<h[1-6]>\s*\d+\s*</h[1-6]>', '', content)
         
-        # 移除多余的空行
+        # 移除重复的HTML结构声明
+        content = re.sub(r'<!DOCTYPE html>\s*<html>\s*<head>.*?</head>\s*<body>\s*(?=<!DOCTYPE)', '', content, flags=re.DOTALL)
+        
+        # 移除重复的内容块（基于文本相似度）
         lines = content.split('\n')
         cleaned_lines = []
-        prev_empty = False
+        seen_content = set()
         
         for line in lines:
             line = line.strip()
             if line:
-                cleaned_lines.append(line)
-                prev_empty = False
-            elif not prev_empty:
-                cleaned_lines.append('')
-                prev_empty = True
+                # 提取纯文本用于去重判断
+                text_only = re.sub(r'<[^>]+>', '', line).strip()
+                if text_only and text_only not in seen_content:
+                    cleaned_lines.append(line)
+                    seen_content.add(text_only)
+                elif not text_only:  # 保留纯HTML标签行
+                    cleaned_lines.append(line)
+            else:
+                # 避免连续空行
+                if cleaned_lines and cleaned_lines[-1] != '':
+                    cleaned_lines.append('')
         
-        return '\n'.join(cleaned_lines)
+        result = '\n'.join(cleaned_lines)
+        
+        # 最终检查：如果清理后内容为空或只剩HTML结构，返回空字符串
+        final_text = re.sub(r'<[^>]+>', '', result).strip()
+        if not final_text or len(final_text) < 3:
+            return ""
+        
+        return result
     
     def _smart_merge_pages(self, page_results: List[dict]) -> str:
         """智能合并多页内容"""
@@ -197,6 +261,11 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
                 
             content = self._clean_content(result['content'])
             if not content:
+                continue
+            
+            # 检查清理后的纯文本长度，避免误删有效内容
+            text_only = re.sub(r'<[^>]+>', '', content).strip()
+            if len(text_only) < 3:  # 只有极短的内容才跳过
                 continue
             
             # 检查是否包含表格，进行去重处理
@@ -295,7 +364,7 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
                 logger.error(f"文件不存在: {full_file_path}")
                 return False, None, None
             
-            self._safe_log(f"开始处理文档: {file_path}")
+            logger.info(f"开始OCR处理: {os.path.basename(file_path)}")
             
             # 将PDF转换为图片
             image_paths = self._pdf_to_images(full_file_path)
@@ -303,7 +372,8 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
                 logger.error("PDF转图片失败")
                 return False, None, None
             
-            self._safe_log(f"PDF转换完成，共{len(image_paths)}页")
+            # 减少详细日志，只记录关键信息
+            pass
             
             # 并发处理所有页面
             total_pages = len(image_paths)
@@ -373,7 +443,7 @@ OCR第{page_num}/{total_pages}页，HTML输出："""
             html_relative = f"processed/{html_filename}"
             text_relative = f"processed/{text_filename}"
             
-            self._safe_log(f"OCR处理完成: {file_path}")
+            logger.info(f"OCR处理完成: {os.path.basename(file_path)}")
             return True, html_relative, text_relative
             
         except Exception as e:

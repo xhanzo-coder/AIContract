@@ -30,4 +30,26 @@
     </content>
     <tags>#其他</tags>
   </item>
+  <item id="mem_1754546559879_vya99t9ql" time="2025/08/07 14:02">
+    <content>
+      修复合同上传功能中&#x27;无法获取合同ID&#x27;错误的经验：
+    
+      问题分析：
+      1. 后端返回的是BaseResponse结构：{success, message, data}，其中data字段包含FileUploadResponse
+      2. 前端代码直接使用result.contract_id，但实际应该使用result.data.contract_id
+      3. 这导致contractId为undefined，触发错误提示
+    
+      解决方案：
+      1. 在frontend/src/pages/Upload/index.tsx中修改数据提取逻辑
+      2. 使用const contractData = result.data || result进行兼容处理
+      3. 更新所有使用contract_id和ocr_status的地方使用contractData
+      4. 添加详细的调试日志帮助排查问题
+    
+      技术要点：
+      - 后端BaseResponse结构需要前端正确解析嵌套的data字段
+      - 使用可选链操作符?.确保安全访问
+      - 兼容处理确保代码健壮性
+    </content>
+    <tags>#其他</tags>
+  </item>
 </memory>

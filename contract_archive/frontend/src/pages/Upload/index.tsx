@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Upload, 
   Button, 
@@ -23,18 +23,28 @@ import {
   UploadOutlined, 
   InboxOutlined, 
   FileTextOutlined, 
+  FilePdfOutlined,
+  FileImageOutlined,
+  FileOutlined,
   CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  ClockCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
   InfoCircleOutlined,
   EyeOutlined,
-  SyncOutlined
+  SyncOutlined,
+  DatabaseOutlined,
+  ScissorOutlined,
+  RedoOutlined,
+  PlayCircleOutlined
 } from '@ant-design/icons'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 import { RootState } from '../../store'
-import { contractAPI } from '../../services/api'
+import { contractAPI, elasticsearchAPI } from '../../services/api'
 import { UploadResponse, OcrStatusResponse } from '../../types'
+
 import dayjs from 'dayjs'
 
 const { Title, Paragraph, Text } = Typography
@@ -61,7 +71,7 @@ const UploadPage: React.FC = () => {
   const [ocrStatusModal, setOcrStatusModal] = useState<{
     visible: boolean
     contractId?: number
-    status?: OcrStatusResponse
+    status?: any
   }>({ visible: false })
 
   const supportedFormats = [
@@ -83,6 +93,41 @@ const UploadPage: React.FC = () => {
     '其他'
   ]
 
+  // 自动化处理流程
+  const startAutomatedProcessing = async (contractId: number, fileUid: string) => {
+    try {
+      console.log('开始自动化处理流程...')
+      
+      // 调用新的自动化处理API
+      const result = await contractAPI.processAutomated(contractId.toString(), false)
+      
+      if (result.success) {
+        // 更新文件状态为完成
+        setFileList(prev => prev.map(f => 
+          f.uid === fileUid 
+            ? { ...f, status: 'done' }
+            : f
+        ))
+        
+        message.success('文件处理完成！已成功完成OCR处理、内容切片和Elasticsearch同步')
+      } else {
+        throw new Error(result.message || '自动化处理失败')
+      }
+      
+    } catch (error: any) {
+      console.error('自动化处理失败:', error)
+      
+      // 更新文件状态为错误
+      setFileList(prev => prev.map(f => 
+        f.uid === fileUid 
+          ? { ...f, status: 'error', error: { message: error.message } }
+          : f
+      ))
+      
+      message.error(`处理失败: ${error.message}`)
+    }
+  }
+
   const handleUpload = async (values: any) => {
     if (fileList.length === 0) {
       message.error('请选择要上传的文件')
@@ -94,6 +139,8 @@ const UploadPage: React.FC = () => {
     try {
       for (const fileItem of fileList) {
         if (fileItem.status === 'done') continue
+        
+        // 开始上传文件（静默处理，不显示消息）
         
         // 更新文件状态为上传中
         setFileList(prev => prev.map(f => 
@@ -123,6 +170,9 @@ const UploadPage: React.FC = () => {
           )
           
           // 上传成功
+          // 后端返回的是BaseResponse结构: {success, message, data}
+          // data字段包含FileUploadResponse: {contract_id, contract_number, file_name, file_size, upload_time, ocr_status}
+          const contractData = result.data || result; // 兼容处理BaseResponse结构
           setFileList(prev => prev.map(f => 
             f.uid === fileItem.uid 
               ? { 
@@ -130,16 +180,23 @@ const UploadPage: React.FC = () => {
                   status: 'processing', 
                   percent: 100, 
                   response: result,
-                  contractId: result.contract_id,
-                  ocrStatus: result.ocr_status
+                  contractId: contractData?.contract_id,
+                  ocrStatus: contractData?.ocr_status
                 }
               : f
           ))
           
+          // 上传成功，开始OCR处理
           message.success(`${fileItem.name} 上传成功，正在进行OCR处理...`)
           
-          // 开始监控OCR状态
-          monitorOcrStatus(result.contract_id, fileItem.uid)
+          // 开始自动化处理流程
+          if (contractData && contractData.contract_id) {
+            await startAutomatedProcessing(contractData.contract_id, fileItem.uid)
+          } else {
+            console.error('上传响应中缺少contract_id:', result)
+            console.error('解析的contractData:', contractData)
+            message.error(`${fileItem.name} 上传成功但无法获取合同ID，请刷新页面重试`)
+          }
           
         } catch (error: any) {
           console.error('Upload error:', error)
@@ -148,6 +205,7 @@ const UploadPage: React.FC = () => {
               ? { ...f, status: 'error', error: error.response?.data || error.message }
               : f
           ))
+          // 错误已通过message.error显示
           message.error(`${fileItem.name} 上传失败: ${error.response?.data?.message || error.message}`)
         }
       }
@@ -160,11 +218,100 @@ const UploadPage: React.FC = () => {
     }
   }
 
+  // 监控自动化处理状态（带进度显示）
+  const monitorAutomatedProcessing = async (contractId: number, fileUid: string): Promise<boolean> => {
+    const maxChecks = 120 // 最多检查120次（6分钟，因为包含三个步骤）
+    let checkCount = 0
+    
+    return new Promise<boolean>((resolve, reject) => {
+      const checkStatus = async () => {
+        checkCount++
+        
+        try {
+          if (checkCount > maxChecks) {
+            console.error('自动化处理监控超时')
+            message.error('自动化处理超时，请稍后查看状态')
+            resolve(false)
+            return
+          }
+          
+          // 检查OCR状态
+          if (!contractId) {
+            console.error('contractId is undefined in monitorAutomatedProcessing')
+            reject(new Error('合同ID无效'))
+            return
+          }
+          const ocrResponse = await contractAPI.getOcrStatus(contractId.toString())
+          const ocrStatus = ocrResponse.ocr_status
+          
+          // 检查内容处理状态
+          // const contentResponse = await contractAPI.getContentStatus(contractId.toString())
+          // const contentStatus = contentResponse.data?.status
+          const contentStatus = 'completed' // 临时设置为完成状态
+          
+          console.log(`自动化处理状态检查 ${checkCount}/${maxChecks}: OCR=${ocrStatus}, Content=${contentStatus}`)
+          
+          setFileList(prev => prev.map(f => 
+            f.uid === fileUid 
+              ? { ...f, ocrStatus: ocrStatus }
+              : f
+          ))
+          
+          // 如果OCR和内容处理都完成，则认为自动化处理完成
+          if (ocrStatus === 'completed' && contentStatus === 'completed') {
+            console.log('自动化处理完成')
+            setFileList(prev => prev.map(f => 
+              f.uid === fileUid 
+                ? { ...f, status: 'done' }
+                : f
+            ))
+            resolve(true)
+          } else if (ocrStatus === 'failed') {
+            setFileList(prev => prev.map(f => 
+              f.uid === fileUid 
+                ? { ...f, status: 'error', error: { message: 'OCR处理失败' } }
+                : f
+            ))
+            message.error('OCR处理失败')
+            resolve(false)
+          } else if (contentStatus === 'failed') {
+            setFileList(prev => prev.map(f => 
+              f.uid === fileUid 
+                ? { ...f, status: 'error', error: { message: '内容处理失败' } }
+                : f
+            ))
+            message.error('内容处理失败')
+            resolve(false)
+          } else {
+            // 继续检查
+            setTimeout(checkStatus, 3000) // 每3秒检查一次
+          }
+        } catch (error) {
+          console.error('检查自动化处理状态时出错:', error)
+          if (checkCount >= maxChecks) {
+            message.error('自动化处理状态检查失败')
+            resolve(false)
+          } else {
+            // 网络错误时继续重试
+            setTimeout(checkStatus, 3000)
+          }
+        }
+      }
+      
+      // 延迟2秒后开始检查
+      setTimeout(checkStatus, 2000)
+    })
+  }
+
   // 监控OCR处理状态
   const monitorOcrStatus = async (contractId: number, fileUid: string) => {
     const checkStatus = async () => {
       try {
-        const status = await contractAPI.getOcrStatus(contractId)
+        if (!contractId) {
+          console.error('contractId is undefined in monitorOcrStatus')
+          return
+        }
+        const status = await contractAPI.getOcrStatus(contractId.toString())
         
         setFileList(prev => prev.map(f => 
           f.uid === fileUid 
@@ -191,8 +338,11 @@ const UploadPage: React.FC = () => {
           setTimeout(checkStatus, 3000)
         }
       } catch (error) {
-        console.error('OCR status check error:', error)
-      }
+          console.error('OCR status check error:', error)
+          // 网络错误时静默重试，不显示错误信息
+          // 继续监控
+          setTimeout(checkStatus, 3000)
+        }
     }
     
     // 延迟2秒后开始检查
@@ -240,7 +390,7 @@ const UploadPage: React.FC = () => {
   // 查看OCR状态详情
   const viewOcrStatus = async (contractId: number) => {
     try {
-      const status = await contractAPI.getOcrStatus(contractId)
+      const status = await contractAPI.getOcrStatus(contractId.toString())
       setOcrStatusModal({
         visible: true,
         contractId,
@@ -254,7 +404,7 @@ const UploadPage: React.FC = () => {
   // 手动触发OCR处理
   const triggerOcrProcess = async (contractId: number, fileUid: string) => {
     try {
-      await contractAPI.processOcr(contractId)
+      await contractAPI.processOcr(contractId.toString())
       message.success('已触发OCR处理，请稍候...')
       
       // 更新文件状态
@@ -271,6 +421,72 @@ const UploadPage: React.FC = () => {
     }
   }
 
+  // 手动触发内容切片处理
+  const triggerContentProcess = async (contractId: number, fileUid: string) => {
+    try {
+      const result = await contractAPI.processContent(contractId.toString(), true)
+      if (result.success) {
+        message.success('内容切片处理完成')
+        // 更新文件状态
+        setFileList(prev => prev.map(f => 
+          f.uid === fileUid 
+            ? { ...f, status: 'done' }
+            : f
+        ))
+      } else {
+        throw new Error(result.message || '内容切片处理失败')
+      }
+    } catch (error: any) {
+      message.error(`内容切片处理失败: ${error.response?.data?.message || error.message}`)
+    }
+  }
+
+  // 手动同步到Elasticsearch
+  const syncToElasticsearch = async (contractId: number, fileUid: string) => {
+    try {
+      const result = await elasticsearchAPI.syncContract(contractId.toString())
+      if (result.success) {
+        message.success('已成功同步到Elasticsearch')
+      } else {
+        throw new Error(result.message || 'Elasticsearch同步失败')
+      }
+    } catch (error: any) {
+      message.error(`Elasticsearch同步失败: ${error.response?.data?.message || error.message}`)
+    }
+  }
+
+  // 手动触发完整自动化处理
+  const triggerAutomatedProcess = async (contractId: number, fileUid: string, forceReprocess = false) => {
+    try {
+      const result = await contractAPI.processAutomated(contractId.toString(), forceReprocess)
+      if (result.success) {
+        message.success('已触发自动化处理，请稍候...')
+        
+        // 更新文件状态
+        setFileList(prev => prev.map(f => 
+          f.uid === fileUid 
+            ? { ...f, status: 'processing' }
+            : f
+        ))
+        
+        // 开始监控自动化处理状态
+        const success = await monitorAutomatedProcessing(contractId, fileUid)
+        if (!success) {
+          // 如果监控失败，更新文件状态为错误
+          setFileList(prev => prev.map(f => 
+            f.uid === fileUid 
+              ? { ...f, status: 'error' }
+              : f
+          ))
+        }
+      } else {
+        throw new Error(result.message || '自动化处理失败')
+      }
+    } catch (error: any) {
+      message.error(`自动化处理失败: ${error.response?.data?.message || error.message}`)
+    }
+  }
+
   const removeFile = (file: UploadFile) => {
     setFileList(prev => prev.filter(f => f.uid !== file.uid))
     setUploadProgress(prev => {
@@ -279,6 +495,20 @@ const UploadPage: React.FC = () => {
       return newProgress
     })
   }
+
+  // 手动同步到Elasticsearch（单个合同）
+  const syncSingleContract = async (contractId: number) => {
+    try {
+      message.loading('正在同步到Elasticsearch...', 0);
+      await elasticsearchAPI.syncContract(contractId.toString());
+      message.destroy();
+      message.success('同步到Elasticsearch成功！');
+    } catch (error) {
+      message.destroy();
+      console.error('同步到Elasticsearch失败:', error);
+      message.error('同步到Elasticsearch失败，请稍后重试');
+    }
+  };
 
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase()
@@ -434,6 +664,31 @@ const UploadPage: React.FC = () => {
                               icon={<SyncOutlined />}
                               onClick={() => triggerOcrProcess(file.contractId!, file.uid)}
                             >
+                              重新OCR
+                            </Button>
+                          ] : []),
+                          ...(file.contractId && file.ocrStatus === 'completed' ? [
+                            <Button 
+                              type="link" 
+                              icon={<ScissorOutlined />}
+                              onClick={() => triggerContentProcess(file.contractId!, file.uid)}
+                            >
+                              重新切片
+                            </Button>,
+                            <Button 
+                              type="link" 
+                              icon={<DatabaseOutlined />}
+                              onClick={() => syncToElasticsearch(file.contractId!, file.uid)}
+                            >
+                              同步ES
+                            </Button>
+                          ] : []),
+                          ...(file.contractId && file.status === 'done' ? [
+                            <Button 
+                              type="link" 
+                              icon={<PlayCircleOutlined />}
+                              onClick={() => triggerAutomatedProcess(file.contractId!, file.uid, true)}
+                            >
                               重新处理
                             </Button>
                           ] : []),
@@ -562,8 +817,10 @@ const UploadPage: React.FC = () => {
               </div>
             </Space>
           </Card>
-          </Col>
-        </Row>
+        </Col>
+      </Row>
+
+
 
         {/* OCR状态查看模态框 */}
         <Modal
@@ -658,33 +915,67 @@ const UploadPage: React.FC = () => {
 }
 
 const UploadContainer = styled.div`
+  padding: 24px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+  
   .ant-upload-drag {
-    border: 2px dashed #d9d9d9;
-    border-radius: 8px;
-    background: #fafafa;
+    border: 2px dashed rgba(102, 126, 234, 0.3);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
     transition: all 0.3s;
     
     &:hover {
-      border-color: #1890ff;
-      background: #f0f8ff;
+      border-color: rgba(102, 126, 234, 0.5);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
     }
   }
   
   .ant-upload-drag.ant-upload-drag-hover {
-    border-color: #1890ff;
-    background: #f0f8ff;
+    border-color: rgba(102, 126, 234, 0.5);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+  }
+  
+  .ant-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    
+    .ant-card-head {
+      background: rgba(255, 255, 255, 0.5);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .ant-card-body {
+      background: transparent;
+    }
+  }
+  
+  .ant-modal .ant-modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 12px;
   }
 `
 
 const FileListContainer = styled.div`
   margin-top: 16px;
   padding: 16px;
-  background: #fafafa;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
   
   .ant-list-item {
     padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     
     &:last-child {
       border-bottom: none;

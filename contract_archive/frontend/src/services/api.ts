@@ -179,6 +179,72 @@ export const contractAPI = {
     }
   },
 
+  // 获取内容处理状态（包括切片状态）
+  getContentStatus: async (contractId: string): Promise<any> => {
+    try {
+      const response = await api.get(`/v1/contracts/${contractId}/content-status`)
+      return response.data
+    } catch (error) {
+      console.error('Get content status error:', error)
+      throw error
+    }
+  },
+
+  // 处理合同内容分块
+  processContent: async (contractId: string, forceReprocess = false): Promise<any> => {
+    try {
+      const response = await api.post(`/v1/contracts/${contractId}/process-content?force_reprocess=${forceReprocess}`)
+      return response.data
+    } catch (error) {
+      console.error('Process content error:', error)
+      throw error
+    }
+  },
+
+  // 获取合同分块内容
+  getContractChunks: async (contractId: string, page = 1, size = 10): Promise<any> => {
+    try {
+      const response = await api.get(`/v1/contracts/${contractId}/content/chunks?page=${page}&size=${size}`)
+      return response.data
+    } catch (error) {
+      console.error('Get contract chunks error:', error)
+      throw error
+    }
+  },
+
+  // 搜索合同分块内容
+  searchContractChunks: async (contractId: string, query: string, page = 1, size = 10): Promise<any> => {
+    try {
+      const response = await api.get(`/v1/contracts/${contractId}/content/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`)
+      return response.data
+    } catch (error) {
+      console.error('Search contract chunks error:', error)
+      throw error
+    }
+  },
+
+  // 自动化处理合约（OCR+切片+ES同步）
+  processAutomated: async (contractId: string, forceReprocess = false): Promise<any> => {
+    try {
+      const response = await api.post(`/v1/contracts/${contractId}/process-automated?force_reprocess=${forceReprocess}`)
+      return response.data
+    } catch (error) {
+      console.error('Process automated error:', error)
+      throw error
+    }
+  },
+
+  // 获取自动化处理状态
+  getAutomatedProcessingStatus: async (contractId: string): Promise<any> => {
+    try {
+      const response = await api.get(`/v1/contracts/${contractId}/automated-status`)
+      return response.data
+    } catch (error) {
+      console.error('Get automated processing status error:', error)
+      throw error
+    }
+  },
+
   // 获取统计数据 (暂时使用模拟数据，等待后端实现)
   getStatistics: async (): Promise<ApiResponse<Statistics>> => {
     try {
@@ -189,6 +255,118 @@ export const contractAPI = {
       }
     } catch (error) {
       console.error('Get statistics error:', error)
+      throw error
+    }
+  }
+}
+
+// Elasticsearch API
+export const elasticsearchAPI = {
+  // 检查Elasticsearch连接状态
+  checkStatus: async (): Promise<any> => {
+    try {
+      const response = await api.get('/v1/contracts/elasticsearch/status')
+      return response.data
+    } catch (error) {
+      console.error('Check Elasticsearch status error:', error)
+      throw error
+    }
+  },
+
+  // 手动初始化Elasticsearch索引
+  initializeIndex: async (): Promise<any> => {
+    try {
+      const response = await api.post('/v1/contracts/elasticsearch/init')
+      return response.data
+    } catch (error) {
+      console.error('Initialize Elasticsearch index error:', error)
+      throw error
+    }
+  },
+
+  // 获取Elasticsearch同步状态
+  getSyncStatus: async (): Promise<any> => {
+    try {
+      const response = await api.get('/v1/contracts/elasticsearch/sync-status')
+      return response.data
+    } catch (error) {
+      console.error('Get Elasticsearch sync status error:', error)
+      throw error
+    }
+  },
+
+  // 手动同步合同到Elasticsearch
+  syncContract: async (contractId: string): Promise<any> => {
+    try {
+      const response = await api.post(`/v1/contracts/${contractId}/elasticsearch/sync`)
+      return response.data
+    } catch (error) {
+      console.error('Sync contract to Elasticsearch error:', error)
+      throw error
+    }
+  },
+
+  // 批量同步所有合同到Elasticsearch
+  syncAllContracts: async (): Promise<any> => {
+    try {
+      const response = await api.post('/v1/contracts/elasticsearch/sync-all')
+      return response.data
+    } catch (error) {
+      console.error('Sync all contracts to Elasticsearch error:', error)
+      throw error
+    }
+  }
+}
+
+// QA API
+export const qaAPI = {
+  // 提问
+  ask: async (payload: import('../types').QASessionCreate): Promise<import('../types').ApiResponse<import('../types').QASessionResponse>> => {
+    try {
+      const response = await api.post('/v1/qa/ask', payload)
+      return response.data
+    } catch (error) {
+      console.error('QA ask error:', error)
+      throw error
+    }
+  },
+  // 获取会话列表
+  listSessions: async (page = 1, page_size = 20): Promise<import('../types').ApiResponse<import('../types').SessionListResponse>> => {
+    try {
+      const response = await api.get(`/v1/qa/sessions?page=${page}&page_size=${page_size}`)
+      return response.data
+    } catch (error) {
+      console.error('QA list sessions error:', error)
+      throw error
+    }
+  },
+  // 获取会话历史
+  getSessionHistory: async (session_id: string): Promise<import('../types').ApiResponse<import('../types').SessionHistoryResponse>> => {
+    try {
+      const response = await api.get(`/v1/qa/sessions/${session_id}`)
+      return response.data
+    } catch (error) {
+      console.error('QA session history error:', error)
+      throw error
+    }
+  },
+  // 发送反馈
+  sendFeedback: async (session_id: string, message_id: number, payload: import('../types').FeedbackRequest): Promise<import('../types').ApiResponse<null>> => {
+    try {
+      const response = await api.post(`/v1/qa/sessions/${session_id}/messages/${message_id}/feedback`, payload)
+      return response.data
+    } catch (error) {
+      console.error('QA feedback error:', error)
+      throw error
+    }
+  },
+  // 删除会话
+  deleteSession: async (session_id: string): Promise<import('../types').ApiResponse<null>> => {
+    try {
+      const response = await api.delete(`/v1/qa/sessions/${session_id}`)
+      return response.data
+    } catch (error) {
+      console.error('QA delete session error:', error)
       throw error
     }
   }

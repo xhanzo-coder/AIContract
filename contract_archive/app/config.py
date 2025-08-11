@@ -31,7 +31,7 @@ class Settings(BaseModel):
     
     # 系统配置
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "WARNING")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
     
     # API配置

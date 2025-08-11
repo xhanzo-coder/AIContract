@@ -521,6 +521,25 @@ const Settings: React.FC = () => {
 }
 
 const SettingsContainer = styled.div`
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+  padding: 24px;
+  
+  .ant-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+  
+  .ant-modal .ant-modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+  }
+  
   .ant-card-head-title {
     display: flex;
     align-items: center;

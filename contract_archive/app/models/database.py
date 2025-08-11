@@ -11,14 +11,14 @@ if "sqlite" in settings.DATABASE_URL:
     engine = create_engine(
         settings.DATABASE_URL,
         connect_args={"check_same_thread": False},
-        echo=settings.DEBUG
+        echo=False  # 完全禁用SQL查询输出
     )
 else:
     engine = create_engine(
         settings.DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=300,
-        echo=settings.DEBUG
+        echo=False  # 完全禁用SQL查询输出
     )
 
 # 创建会话工厂

@@ -20,7 +20,7 @@ httpx==0.25.2
 requests==2.31.0
 
 # Volcano Engine SDK
-volcengine-python-sdk==1.0.92
+# volcengine-python-sdk==1.0.92  # 暂时注释，需要单独安装
 
 # Frontend
 streamlit==1.28.1
@@ -29,7 +29,7 @@ streamlit==1.28.1
 PyPDF2==3.0.1
 python-docx==1.1.0
 Pillow==10.1.0
-PyMuPDF==1.23.14  # PDF转图片处理，Linux兼容
+PyMuPDF<1.21.0  # PDF转图片处理，兼容paddleocr
 
 # Utilities
 pydantic==2.5.0
@@ -53,5 +53,5 @@ jieba==0.42.1
 elasticsearch-dsl==8.11.0
 
 # LangChain for document processing
-langchain==0.0.350
-langchain-text-splitters==0.0.1
+langchain>=0.1.0
+langchain-text-splitters>=0.0.1

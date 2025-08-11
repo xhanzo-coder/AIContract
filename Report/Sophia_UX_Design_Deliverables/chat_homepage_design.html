@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>合约档案智能检索 - 首页设计</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: #f7fafc;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header保持不变 */
+        .header {
+            height: 64px;
+            background: #2d3748;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-item {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: white;
+        }
+
+        /* 主要内容区域 */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 64px);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+        }
+
+        .main-container.canvas-active {
+            width: 60%;
+            margin-right: 40%;
+        }
+
+        /* 左侧边栏 - 历史对话 */
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .new-chat-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .new-chat-btn:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+        }
+
+        .sidebar-toggle {
+            background: none;
+            border: none;
+            color: #718096;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .sidebar-toggle:hover {
+            background: #f7fafc;
+        }
+
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .chat-item {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        .chat-item:hover {
+            background: #f7fafc;
+            border-color: #e2e8f0;
+        }
+
+        .chat-item.active {
+            background: #edf2f7;
+            border-color: #667eea;
+        }
+
+        .chat-title {
+            font-weight: 500;
+            color: #2d3748;
+            margin-bottom: 4px;
+            font-size: 14px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .chat-time {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        /* 右侧主要内容区域 */
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        /* 欢迎界面 - 初始状态 */
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            text-align: center;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            position: relative;
+            overflow: hidden;
+            color: white;
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .welcome-screen.fade-out {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+
+        .welcome-screen::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        /* 移除复杂动画，保持简洁设计 */
+
+        .welcome-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 24px;
+            background: linear-gradient(45deg, #ffffff, #f8fafc, #e2e8f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
+            letter-spacing: -0.02em;
+            position: relative;
+            z-index: 1;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.3rem;
+            margin-bottom: 48px;
+            opacity: 0.95;
+            max-width: 650px;
+            line-height: 1.7;
+            font-weight: 400;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* 中央搜索框 */
+        .search-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-bottom: 40px;
+            z-index: 2;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 20px 70px 20px 24px;
+            border: none;
+            border-radius: 30px;
+            font-size: 17px;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.1),
+                0 8px 25px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #2d3748;
+            font-weight: 500;
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: #a0aec0;
+            font-weight: 400;
+        }
+
+        .search-input:focus {
+            box-shadow: 
+                0 25px 80px rgba(0, 0, 0, 0.15),
+                0 12px 35px rgba(102, 126, 234, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .search-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .search-btn:hover {
+            transform: translateY(-50%) scale(1.08);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.5);
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+        }
+
+        /* 建议标签 */
+        .suggestions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 50px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 移除复杂的分层动画 */
+
+        .suggestion-tag {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 25px;
+            color: rgba(255, 255, 255, 0.95);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.3px;
+        }
+
+        .suggestion-tag:hover {
+            background: rgba(255, 255, 255, 0.4);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            color: rgba(255, 255, 255, 1);
+        }
+
+        /* 功能卡片样式已移除 - 保持简洁设计 */
+
+        /* 对话界面 - 激活状态 */
+        .chat-screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .chat-screen.active {
+            display: flex;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .chat-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sidebar-toggle-btn {
+            background: none;
+            border: none;
+            color: #718096;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: #f7fafc;
+            color: #4a5568;
+        }
+
+        .current-chat-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            background: none;
+            border: 1px solid #e2e8f0;
+            color: #718096;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+
+        /* 消息区域 */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 85%;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #667eea;
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: #48bb78;
+            color: white;
+        }
+
+        .message-content {
+            background: #f7fafc;
+            padding: 16px 20px;
+            border-radius: 16px;
+            line-height: 1.6;
+            color: #2d3748;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 搜索结果区域 - 高级设计 */
+        .search-results {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(10px);
+        }
+
+        .results-header {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .results-header .source-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .result-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .result-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .result-item:hover::before {
+            transform: scaleY(1);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .result-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .result-title .file-icon {
+            font-size: 16px;
+            opacity: 0.7;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 8px;
+        }
+
+        .result-meta .relevance-score {
+            background: #e6fffa;
+            color: #38b2ac;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .result-snippet {
+            font-size: 14px;
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .result-snippet .highlight {
+            background: linear-gradient(135deg, #fef5e7 0%, #fed7aa 100%);
+            color: #c05621;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .result-item:hover .result-actions {
+            opacity: 1;
+        }
+
+        .action-chip {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            color: #4a5568;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .action-chip:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* 输入区域 */
+        .input-area {
+            padding: 20px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: white;
+        }
+
+        .input-container {
+            position: relative;
+            max-width: 100%;
+        }
+
+        .chat-input {
+            width: 100%;
+            padding: 16px 60px 16px 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+            resize: none;
+            min-height: 52px;
+            max-height: 120px;
+            transition: all 0.3s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            background: #5a67d8;
+        }
+
+        .send-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+
+        /* 文档预览画布 */
+        .document-canvas {
+            position: fixed;
+            top: 60px; /* 从header下方开始 */
+            right: -40%;
+            width: 40%;
+            height: calc(100vh - 60px);
+            background: white;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .document-canvas.active {
+            right: 0;
+        }
+
+        /* 当画布激活时，调整主内容区域的样式已在上方定义 */
+
+        .canvas-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .canvas-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .canvas-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .canvas-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .canvas-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .document-info {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .document-info h3 {
+            color: #2d3748;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .document-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            font-size: 13px;
+            color: #718096;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-label {
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .document-content {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            line-height: 1.8;
+            font-size: 14px;
+            color: #2d3748;
+        }
+
+        .document-content .search-highlight {
+            background: linear-gradient(135deg, #fef5e7 0%, #fed7aa 100%);
+            color: #c05621;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(192, 86, 33, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .document-content .search-highlight.current-highlight {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            transform: scale(1.05);
+        }
+
+        .highlight-navigation {
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .highlight-counter {
+            font-size: 13px;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .highlight-nav-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-btn {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            color: #4a5568;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                height: 100%;
+                z-index: 100;
+                box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+            }
+
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+                width: 280px;
+            }
+
+            .welcome-title {
+                font-size: 2rem;
+            }
+
+            .search-container {
+                max-width: 100%;
+            }
+
+            .feature-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .document-canvas {
+                width: 100%;
+                right: -100%;
+                top: 0;
+                height: 100vh;
+            }
+
+            .main-container.canvas-active {
+                width: 0;
+                margin-right: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header保持不变 -->
+    <div class="header">
+        <div class="logo">📋 合约档案智能检索</div>
+        <div class="nav-menu">
+            <a href="#" class="nav-item active">首页</a>
+            <a href="#" class="nav-item">文档上传</a>
+            <a href="#" class="nav-item">智能搜索</a>
+            <a href="#" class="nav-item">使用统计</a>
+            <a href="#" class="nav-item">系统设置</a>
+        </div>
+        <div class="header-right">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #52c41a;">✓</span>
+                    <span style="font-size: 14px;">ES正常 (1)</span>
+                </div>
+                <button style="background: none; border: none; color: white; cursor: pointer; padding: 8px; border-radius: 4px;">🔄 初始化</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 12px; border-radius: 6px;">
+                <span>👤</span>
+                <span>用户</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容区域 -->
+    <div class="main-container">
+        <!-- 左侧边栏 - 历史对话 -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="startNewChat()">
+                    <span>✏️</span>
+                    新建对话
+                </button>
+                <button class="sidebar-toggle" onclick="toggleSidebar()">
+                    ←
+                </button>
+            </div>
+            <div class="chat-history">
+                <div class="chat-item active">
+                    <div class="chat-title">违约责任条款有哪些？</div>
+                    <div class="chat-time">2小时前</div>
+                </div>
+                <div class="chat-item">
+                    <div class="chat-title">租赁合同的付款方式和期限</div>
+                    <div class="chat-time">昨天</div>
+                </div>
+                <div class="chat-item">
+                    <div class="chat-title">工程合同中的质量保证条款</div>
+                    <div class="chat-time">3天前</div>
+                </div>
+                <div class="chat-item">
+                    <div class="chat-title">合同终止的条件和程序</div>
+                    <div class="chat-time">1周前</div>
+                </div>
+                <div class="chat-item">
+                    <div class="chat-title">知识产权归属相关条款</div>
+                    <div class="chat-time">1周前</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧主要内容区域 -->
+        <div class="content-area">
+            <!-- 欢迎界面 - 初始状态 -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <h1 class="welcome-title">智能合约问答助手</h1>
+                <p class="welcome-subtitle">
+                    基于您上传的合约文档，为您提供精准的智能问答服务。
+                    输入您的问题，我将搜索相关文档并为您提供详细解答。
+                </p>
+                
+                <div class="search-container">
+                    <input 
+                        type="text" 
+                        class="search-input" 
+                        placeholder="请输入您的问题，例如：这份合同的违约责任条款是什么？"
+                        id="mainSearchInput"
+                        onkeypress="handleMainSearch(event)"
+                    >
+                    <button class="search-btn" onclick="performMainSearch()">
+                        🔍
+                    </button>
+                </div>
+
+                <div class="suggestions">
+                    <div class="suggestion-tag" onclick="searchSuggestion('违约责任条款')">违约责任条款</div>
+                    <div class="suggestion-tag" onclick="searchSuggestion('付款方式')">付款方式</div>
+                    <div class="suggestion-tag" onclick="searchSuggestion('合同期限')">合同期限</div>
+                    <div class="suggestion-tag" onclick="searchSuggestion('终止条件')">终止条件</div>
+                    <div class="suggestion-tag" onclick="searchSuggestion('知识产权')">知识产权</div>
+                </div>
+
+                <!-- 功能卡片已移除，保持简洁的设计 -->
+            </div>
+
+            <!-- 对话界面 - 激活状态 -->
+            <div class="chat-screen" id="chatScreen">
+                <div class="chat-header">
+                    <div class="chat-title-area">
+                        <button class="sidebar-toggle-btn" onclick="toggleSidebar()">
+                            ☰
+                        </button>
+                        <div class="current-chat-title">违约责任条款有哪些？</div>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="action-btn">📋 复制</button>
+                        <button class="action-btn">🔄 重新生成</button>
+                        <button class="action-btn">🗑️ 删除</button>
+                    </div>
+                </div>
+
+                <div class="messages-area" id="messagesArea">
+                    <!-- 用户消息 -->
+                    <div class="message user">
+                        <div class="message-avatar">👤</div>
+                        <div class="message-content">
+                            违约责任条款有哪些？
+                        </div>
+                    </div>
+
+                    <!-- AI回复消息 -->
+                    <div class="message assistant">
+                        <div class="message-avatar">🤖</div>
+                        <div class="message-content">
+                            根据您上传的合约文档，我为您找到了以下违约责任条款：
+                            
+                            <div class="search-results">
+                                <div class="results-header">
+                                    <span>📄</span>
+                                    找到 3 个相关文档片段
+                                </div>
+                                <div class="result-item" onclick="openSampleDocument1()">
+                                    <div class="result-title">租赁合同-办公楼A座.pdf</div>
+                                    <div class="result-snippet">第八条 违约责任：乙方逾期支付租金超过15日的，甲方有权解除合同并要求乙方支付违约金...</div>
+                                    <div class="result-actions">
+                                        <div class="action-chip" onclick="event.stopPropagation(); openSampleDocument1()">📖 查看原文</div>
+                                        <div class="action-chip" onclick="event.stopPropagation()">🔗 相关文档</div>
+                                    </div>
+                                </div>
+                                <div class="result-item" onclick="openSampleDocument2()">
+                                    <div class="result-title">工程合约（双方）.pdf</div>
+                                    <div class="result-snippet">第十二条 违约责任：承包方未按约定时间完工的，每延误一日按合同总价的0.5%支付违约金...</div>
+                                    <div class="result-actions">
+                                        <div class="action-chip" onclick="event.stopPropagation(); openSampleDocument2()">📖 查看原文</div>
+                                        <div class="action-chip" onclick="event.stopPropagation()">🔗 相关文档</div>
+                                    </div>
+                                </div>
+                                <div class="result-item" onclick="openSampleDocument1()">
+                                    <div class="result-title">特种设备合同.pdf</div>
+                                    <div class="result-snippet">第九条 违约责任：设备质量不符合约定标准的，供方应承担修理、更换或退货的责任...</div>
+                                    <div class="result-actions">
+                                        <div class="action-chip" onclick="event.stopPropagation(); openSampleDocument1()">📖 查看原文</div>
+                                        <div class="action-chip" onclick="event.stopPropagation()">🔗 相关文档</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            **总结：**
+                            
+                            根据分析，您的合约文档中主要包含以下几类违约责任条款：
+                            
+                            1. **逾期付款违约**：通常设定15-30日的宽限期，超期需支付违约金
+                            2. **工期延误违约**：按日计算违约金，一般为合同总价的0.3%-0.5%
+                            3. **质量不符违约**：包括修理、更换、退货等补救措施
+                            4. **合同解除权**：严重违约情况下的合同终止条款
+                            
+                            如需了解特定合同的详细条款，请告诉我具体的合同名称。
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <div class="input-container">
+                        <textarea 
+                            class="chat-input" 
+                            placeholder="继续提问或输入新问题..."
+                            id="chatInput"
+                            onkeypress="handleChatInput(event)"
+                        ></textarea>
+                        <button class="send-btn" onclick="sendMessage()">
+                            ↗️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文档预览画布 -->
+    <div class="document-canvas" id="documentCanvas">
+        <div class="canvas-header">
+            <div class="canvas-title">
+                <span>📄</span>
+                <span id="canvasDocTitle">文档预览</span>
+            </div>
+            <button class="canvas-close" onclick="closeDocumentCanvas()">✕ 关闭</button>
+        </div>
+        <div class="canvas-content">
+            <div class="document-info">
+                <h3>文档信息</h3>
+                <div class="document-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">文件名</span>
+                        <span id="metaFileName">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">文件类型</span>
+                        <span id="metaFileType">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">文件大小</span>
+                        <span id="metaFileSize">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">相关度</span>
+                        <span id="metaRelevance">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">修改时间</span>
+                        <span id="metaModified">-</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">匹配关键词</span>
+                        <span id="metaKeywords">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="highlight-navigation">
+                <div class="highlight-counter">
+                    高亮匹配: <span id="currentHighlight">0</span> / <span id="totalHighlights">0</span>
+                </div>
+                <div class="highlight-nav-buttons">
+                    <button class="nav-btn" onclick="previousHighlight()" id="prevBtn">⬆ 上一个</button>
+                    <button class="nav-btn" onclick="nextHighlight()" id="nextBtn">⬇ 下一个</button>
+                </div>
+            </div>
+            
+            <div class="document-content" id="documentContent">
+                <p>请点击搜索结果中的文档卡片来查看详细内容...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 切换侧边栏显示/隐藏
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+
+        // 开始新对话
+        function startNewChat() {
+            document.getElementById('welcomeScreen').style.display = 'flex';
+            document.getElementById('chatScreen').classList.remove('active');
+            document.getElementById('mainSearchInput').value = '';
+            document.getElementById('mainSearchInput').focus();
+        }
+
+        // 主搜索功能
+        function performMainSearch() {
+            const input = document.getElementById('mainSearchInput');
+            const query = input.value.trim();
+            if (query) {
+                startChat(query);
+            }
+        }
+
+        // 处理主搜索输入
+        function handleMainSearch(event) {
+            if (event.key === 'Enter') {
+                performMainSearch();
+            }
+        }
+
+        // 搜索建议点击
+        function searchSuggestion(suggestion) {
+            document.getElementById('mainSearchInput').value = suggestion;
+            performMainSearch();
+        }
+
+        // 开始对话
+        function startChat(query) {
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            const chatScreen = document.getElementById('chatScreen');
+            
+            // 添加淡出效果
+            welcomeScreen.classList.add('fade-out');
+            
+            // 延迟显示聊天界面，等待淡出动画完成
+            setTimeout(() => {
+                welcomeScreen.style.display = 'none';
+                chatScreen.style.display = 'flex';
+                
+                // 稍微延迟添加active类，确保display变化生效
+                setTimeout(() => {
+                    chatScreen.classList.add('active');
+                }, 50);
+            }, 600); // 与CSS过渡时间匹配
+            
+            // 这里可以添加发送消息到后端的逻辑
+            console.log('开始对话:', query);
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (message) {
+                // 这里添加发送消息的逻辑
+                console.log('发送消息:', message);
+                input.value = '';
+            }
+        }
+
+        // 处理对话输入
+        function handleChatInput(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // 导航功能已移除 - 保持代码简洁
+
+        // 文档预览画布相关变量
+        let currentHighlightIndex = 0;
+        let totalHighlights = 0;
+        let highlightElements = [];
+
+        // 打开文档预览画布
+        function openDocumentCanvas(docData) {
+            const canvas = document.getElementById('documentCanvas');
+            const mainContent = document.querySelector('.main-container');
+            
+            // 更新文档信息
+            document.getElementById('canvasDocTitle').textContent = docData.title;
+            document.getElementById('metaFileName').textContent = docData.fileName;
+            document.getElementById('metaFileType').textContent = docData.fileType;
+            document.getElementById('metaFileSize').textContent = docData.fileSize;
+            document.getElementById('metaRelevance').textContent = docData.relevance;
+            document.getElementById('metaModified').textContent = docData.modified;
+            document.getElementById('metaKeywords').textContent = docData.keywords;
+            
+            // 更新文档内容（带高亮）
+            const contentDiv = document.getElementById('documentContent');
+            contentDiv.innerHTML = docData.content;
+            
+            // 初始化高亮导航
+            initHighlightNavigation();
+            
+            // 显示画布
+            canvas.classList.add('active');
+            mainContent.classList.add('canvas-active');
+        }
+
+        // 关闭文档预览画布
+        function closeDocumentCanvas() {
+            const canvas = document.getElementById('documentCanvas');
+            const mainContent = document.querySelector('.main-container');
+            canvas.classList.remove('active');
+            mainContent.classList.remove('canvas-active');
+        }
+
+        // 初始化高亮导航
+        function initHighlightNavigation() {
+            highlightElements = document.querySelectorAll('#documentContent .search-highlight');
+            totalHighlights = highlightElements.length;
+            currentHighlightIndex = 0;
+            
+            document.getElementById('totalHighlights').textContent = totalHighlights;
+            document.getElementById('currentHighlight').textContent = totalHighlights > 0 ? '1' : '0';
+            
+            // 更新按钮状态
+            updateNavigationButtons();
+            
+            // 如果有高亮，滚动到第一个
+            if (totalHighlights > 0) {
+                scrollToHighlight(0);
+            }
+        }
+
+        // 上一个高亮
+        function previousHighlight() {
+            if (totalHighlights === 0) return;
+            currentHighlightIndex = (currentHighlightIndex - 1 + totalHighlights) % totalHighlights;
+            scrollToHighlight(currentHighlightIndex);
+            updateNavigationButtons();
+        }
+
+        // 下一个高亮
+        function nextHighlight() {
+            if (totalHighlights === 0) return;
+            currentHighlightIndex = (currentHighlightIndex + 1) % totalHighlights;
+            scrollToHighlight(currentHighlightIndex);
+            updateNavigationButtons();
+        }
+
+        // 滚动到指定高亮
+        function scrollToHighlight(index) {
+            if (index >= 0 && index < highlightElements.length) {
+                // 移除之前的当前高亮样式
+                highlightElements.forEach(el => el.classList.remove('current-highlight'));
+                
+                // 添加当前高亮样式
+                highlightElements[index].classList.add('current-highlight');
+                
+                // 滚动到视图
+                highlightElements[index].scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                
+                // 更新计数器
+                document.getElementById('currentHighlight').textContent = index + 1;
+            }
+        }
+
+        // 更新导航按钮状态
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            if (totalHighlights === 0) {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+            } else {
+                prevBtn.disabled = false;
+                nextBtn.disabled = false;
+            }
+        }
+
+        // 示例文档数据
+        function openSampleDocument1() {
+            const docData = {
+                title: '合同管理制度.pdf',
+                fileName: '合同管理制度.pdf',
+                fileType: 'PDF文档',
+                fileSize: '2.3 MB',
+                relevance: '95%',
+                modified: '2024-01-15',
+                keywords: '合同签署, 审批流程, 归档管理',
+                content: `
+                    <h3>第一章 总则</h3>
+                    <p>为规范公司<span class="search-highlight">合同签署</span>管理，提高合同管理效率，防范合同风险，根据《中华人民共和国合同法》等相关法律法规，结合公司实际情况，制定本制度。</p>
+                    
+                    <h3>第二章 合同管理原则</h3>
+                    <p>公司合同管理应遵循以下原则：</p>
+                    <ul>
+                        <li>合法性原则：所有<span class="search-highlight">合同签署</span>必须符合国家法律法规要求</li>
+                        <li>规范性原则：严格按照公司制定的合同管理流程执行</li>
+                        <li>风险控制原则：建立完善的合同风险识别和防控机制</li>
+                    </ul>
+                    
+                    <h3>第三章 合同签署流程</h3>
+                    <p>合同签署应按以下流程进行：</p>
+                    <ol>
+                        <li><strong>合同起草</strong>：由业务部门根据业务需求起草合同初稿</li>
+                        <li><strong>法务审核</strong>：法务部门对合同条款进行合规性审核</li>
+                        <li><strong>财务审核</strong>：财务部门对合同金额和付款条件进行审核</li>
+                        <li><strong>领导审批</strong>：根据合同金额确定相应的审批权限</li>
+                        <li><strong><span class="search-highlight">合同签署</span></strong>：经审批通过后，由授权人员正式签署合同</li>
+                        <li><strong>合同归档</strong>：签署完成的合同应及时归档保存</li>
+                    </ol>
+                    
+                    <h3>第四章 合同履行监督</h3>
+                    <p>合同签署后，相关部门应建立合同履行台账，定期跟踪合同执行情况，确保合同条款得到有效履行。对于重要合同，应指定专人负责跟踪管理。</p>
+                    
+                    <h3>第五章 违约处理</h3>
+                    <p>当发现合同违约情况时，应及时采取以下措施：</p>
+                    <ul>
+                        <li>立即通知相关责任部门和领导</li>
+                        <li>评估违约风险和可能造成的损失</li>
+                        <li>制定应对方案，必要时寻求法律支持</li>
+                        <li>做好相关证据保全工作</li>
+                    </ul>
+                `
+            };
+            openDocumentCanvas(docData);
+        }
+
+        function openSampleDocument2() {
+            const docData = {
+                title: '供应商合作协议模板.docx',
+                fileName: '供应商合作协议模板.docx',
+                fileType: 'Word文档',
+                fileSize: '1.8 MB',
+                relevance: '87%',
+                modified: '2024-01-10',
+                keywords: '合同条款, 付款方式, 违约责任',
+                content: `
+                    <h3>供应商合作协议</h3>
+                    <p><strong>甲方</strong>：[公司名称]</p>
+                    <p><strong>乙方</strong>：[供应商名称]</p>
+                    
+                    <h3>第一条 合作内容</h3>
+                    <p>甲乙双方本着平等互利、诚实守信的原则，就乙方向甲方提供[产品/服务名称]事宜，经友好协商，达成如下<span class="search-highlight">合同条款</span>：</p>
+                    
+                    <h3>第二条 产品规格与质量标准</h3>
+                    <p>乙方提供的产品应符合以下规格和质量标准：</p>
+                    <ul>
+                        <li>产品规格：[具体规格要求]</li>
+                        <li>质量标准：[质量标准描述]</li>
+                        <li>检验标准：[检验方法和标准]</li>
+                    </ul>
+                    
+                    <h3>第三条 价格与付款方式</h3>
+                    <p>本协议约定的<span class="search-highlight">付款方式</span>如下：</p>
+                    <ol>
+                        <li><strong>价格确定</strong>：产品单价为[具体金额]，总金额为[总金额]</li>
+                        <li><strong>付款条件</strong>：甲方应在收到货物并验收合格后[付款期限]内支付货款</li>
+                        <li><strong>付款方式</strong>：通过银行转账方式支付至乙方指定账户</li>
+                    </ol>
+                    
+                    <h3>第四条 交货与验收</h3>
+                    <p>乙方应按照约定时间和地点交付产品，甲方应在收到货物后[验收期限]内完成验收。验收不合格的，甲方有权要求乙方重新交付或退货。</p>
+                    
+                    <h3>第五条 违约责任</h3>
+                    <p>任何一方违反本协议约定的<span class="search-highlight">合同条款</span>，应承担相应的<span class="search-highlight">违约责任</span>：</p>
+                    <ul>
+                        <li>乙方延期交货的，应支付延期交货违约金</li>
+                        <li>甲方延期付款的，应支付延期付款违约金</li>
+                        <li>产品质量不符合要求的，乙方应负责退换并承担相关费用</li>
+                    </ul>
+                    
+                    <h3>第六条 争议解决</h3>
+                    <p>因履行本协议发生争议的，双方应友好协商解决；协商不成的，可向甲方所在地人民法院提起诉讼。</p>
+                `
+            };
+            openDocumentCanvas(docData);
+        }
+
+        // 自动调整输入框高度
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                });
+            }
+        });
+    </script>
+</body>
+</html>

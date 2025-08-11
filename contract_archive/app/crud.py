@@ -51,12 +51,18 @@ class ContractCRUD:
         return db.query(Contract).count()
     
     @staticmethod
+    def get_all_contracts(db: Session) -> List[Contract]:
+        """获取所有合同"""
+        return db.query(Contract).order_by(desc(Contract.created_at)).all()
+    
+    @staticmethod
     def update_contract_status(
         db: Session, 
         contract_id: int, 
         ocr_status: Optional[str] = None,
         content_status: Optional[str] = None,
         vector_status: Optional[str] = None,
+        elasticsearch_sync_status: Optional[str] = None,
         html_content_path: Optional[str] = None,
         text_content_path: Optional[str] = None
     ) -> Optional[Contract]:
@@ -69,6 +75,8 @@ class ContractCRUD:
                 contract.content_status = content_status
             if vector_status is not None:
                 contract.vector_status = vector_status
+            if elasticsearch_sync_status is not None:
+                contract.elasticsearch_sync_status = elasticsearch_sync_status
             if html_content_path is not None:
                 contract.html_content_path = html_content_path
             if text_content_path is not None:
