@@ -2,12 +2,14 @@ import { configureStore } from '@reduxjs/toolkit'
 import contractReducer from './slices/contractSlice'
 import searchReducer from './slices/searchSlice'
 import uiReducer from './slices/uiSlice'
+import chatReducer from './slices/chatSlice'
 
 export const store = configureStore({
   reducer: {
     contract: contractReducer,
     search: searchReducer,
     ui: uiReducer,
+    chat: chatReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -1,18 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Input, Card, Modal, Drawer } from 'antd';
+import { Button, Input } from 'antd';
 import { 
   MenuOutlined,
   SendOutlined,
-  SearchOutlined,
   UserOutlined,
   RobotOutlined,
-  CloseOutlined,
-  UpOutlined,
-  DownOutlined
+  CloseOutlined
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+//
 import styled from 'styled-components';
 import { qaAPI } from '../../services/api';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import {
+  setCurrentView as setCurrentViewGlobal,
+  setMessages as setMessagesGlobal,
+  addMessage as addMessageGlobal,
+  clearConversation as clearConversationGlobal,
+  setSessionId as setSessionIdGlobal,
+  setIsViewingHistory as setIsViewingHistoryGlobal,
+  setIsCanvasOpen as setIsCanvasOpenGlobal,
+  setSelectedDocument as setSelectedDocumentGlobal,
+  setCurrentHighlight as setCurrentHighlightGlobal,
+  setIsSearching as setIsSearchingGlobal,
+  setInputValue as setInputValueGlobal,
+  setFeedbackStatus as setFeedbackStatusGlobal,
+} from '../../store/slices/chatSlice'
 
 interface ChatMessage {
   id: string;
@@ -60,26 +73,28 @@ interface ChatHistory {
 }
 
 const Home: React.FC = () => {
-  const navigate = useNavigate();
+  
+  const dispatch = useDispatch();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [currentView, setCurrentView] = useState<'welcome' | 'chat'>('welcome');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<SearchResult | null>(null);
-  const [currentHighlight, setCurrentHighlight] = useState(0);
+  const {
+    currentView,
+    messages,
+    inputValue,
+    isCanvasOpen,
+    selectedDocument,
+    // currentHighlight, // not used directly in this component
+    isSearching,
+    sessionId,
+    isViewingHistory,
+    feedbackStatus,
+  } = useSelector((state: RootState) => state.chat);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // 聊天历史数据
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // 搜索状态
-  const [isSearching, setIsSearching] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  
-  // 反馈状态
-  const [feedbackStatus, setFeedbackStatus] = useState<{[messageId: string]: 'helpful' | 'not_helpful' | null}>({});
+  // 搜索状态、会话状态、反馈状态统一由全局store管理
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -109,23 +124,58 @@ const Home: React.FC = () => {
     loadChatHistory();
   }, []);
 
+  // 监听窗口大小变化，自动调整侧边栏状态
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768 && !sidebarCollapsed) {
+        // 桌面端时确保侧边栏可见
+      } else if (window.innerWidth <= 768) {
+        // 移动端时默认折叠侧边栏
+        setSidebarCollapsed(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    // 初始检查
+    handleResize();
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarCollapsed]);
+
   // 加载历史会话
   const loadHistorySession = async (sessionId: string) => {
     try {
       const response = await qaAPI.getSessionHistory(sessionId);
       if (response.success) {
-        const historyMessages: ChatMessage[] = response.data.messages.map(msg => ({
-          id: msg.id.toString(),
-          type: msg.question ? 'user' : 'assistant',
-          content: msg.question || msg.answer || '',
-          timestamp: new Date(msg.created_at),
-          searchResults: msg.elasticsearch_results ? extractSearchResults(msg.elasticsearch_results) : undefined,
-          documentGroups: msg.elasticsearch_results ? groupChunksByFile(extractSearchResults(msg.elasticsearch_results)) : undefined
-        }));
+        // 分离用户问题和AI回答为独立的消息
+        const historyMessages: ChatMessage[] = [];
+        response.data.messages.forEach(msg => {
+          // 添加用户问题
+          if (msg.question) {
+            historyMessages.push({
+              id: `${msg.id}-question`,
+              type: 'user',
+              content: msg.question,
+              timestamp: new Date(msg.created_at),
+            });
+          }
+          
+          // 添加AI回答（包含搜索结果）
+          if (msg.answer) {
+            historyMessages.push({
+              id: `${msg.id}-answer`,
+              type: 'assistant',
+              content: msg.answer,
+              timestamp: new Date(msg.created_at),
+              searchResults: msg.elasticsearch_results ? extractSearchResults(msg.elasticsearch_results) : undefined,
+              documentGroups: msg.elasticsearch_results ? groupChunksByFile(extractSearchResults(msg.elasticsearch_results)) : undefined
+            });
+          }
+        });
         
-        setMessages(historyMessages);
-        setSessionId(sessionId);
-        setCurrentView('chat');
+        dispatch(setMessagesGlobal(historyMessages as any));
+        dispatch(setSessionIdGlobal(sessionId));
+        dispatch(setCurrentViewGlobal('chat'));
       }
     } catch (error) {
       console.error('加载历史会话失败:', error);
@@ -134,7 +184,8 @@ const Home: React.FC = () => {
 
   // 从elasticsearch结果中提取搜索结果
   const extractSearchResults = (esResults: any): SearchResult[] => {
-    const hits: any[] = esResults?.hits?.hits ?? [];
+    const esDoc = esResults?.es ?? esResults;
+    const hits: any[] = esDoc?.hits?.hits ?? [];
     return hits.map((hit: any) => {
       const src = hit._source || {};
       const highlight = hit.highlight || {};
@@ -172,26 +223,29 @@ const Home: React.FC = () => {
       timestamp: new Date()
     };
     
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setCurrentView('chat');
-    setIsSearching(true);
+    dispatch(addMessageGlobal(userMessage as any));
+    dispatch(setInputValueGlobal(''));
+    dispatch(setCurrentViewGlobal('chat'));
+    dispatch(setIsSearchingGlobal(true));
     
     try {
-      // 调用QA问答接口（后端会返回ES搜索结果作为占位回答）
+      // 调用QA问答接口（使用混合RAG流程）
       const payload = { question: query, session_id: sessionId ?? undefined };
       const resp = await qaAPI.ask(payload);
       const data = resp.data;
 
       // 首次会话，记录生成的session_id
       if (!sessionId && data.session_id) {
-        setSessionId(data.session_id);
+        dispatch(setSessionIdGlobal(data.session_id));
         // 重新加载会话列表以显示新创建的会话
         loadChatHistory();
       }
 
-      // 从Elasticsearch原始结果中提取内容块
-      const es = data.elasticsearch_results as any;
+      // 获取AI生成的回答（这是最重要的内容）
+      const aiAnswer = data.answer || '';
+      
+      // 从Elasticsearch原始结果中提取内容块用于展示来源
+      const es = (data.elasticsearch_results as any)?.es ?? (data.elasticsearch_results as any);
       const hits: any[] = es?.hits?.hits ?? [];
 
       const chunks: SearchResult[] = hits.map((hit: any) => {
@@ -222,18 +276,19 @@ const Home: React.FC = () => {
       // 按文件分组
       const documentGroups = groupChunksByFile(chunks);
       
+      // 创建助手消息，优先显示AI回答
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: chunks.length > 0 
+        content: aiAnswer || (chunks.length > 0 
           ? `根据您的查询"${query}"，我为您找到了以下相关文档信息：`
-          : `抱歉，没有找到与"${query}"相关的文档信息。`,
+          : `抱歉，没有找到与"${query}"相关的文档信息。`),
         timestamp: new Date(),
         searchResults: chunks,
         documentGroups: documentGroups
       };
       
-      setMessages(prev => [...prev, assistantMessage]);
+      dispatch(addMessageGlobal(assistantMessage as any));
     } catch (error) {
       console.error('搜索失败:', error);
       const errorMessage: ChatMessage = {
@@ -242,9 +297,9 @@ const Home: React.FC = () => {
         content: '抱歉，搜索服务暂时不可用，请稍后再试。',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, errorMessage]);
+      dispatch(addMessageGlobal(errorMessage as any));
     } finally {
-      setIsSearching(false);
+      dispatch(setIsSearchingGlobal(false));
     }
   };
 
@@ -298,17 +353,13 @@ const Home: React.FC = () => {
       documentGroup: group // 保存完整的分组信息
     };
     
-    setSelectedDocument(docForPreview as any);
-    setIsCanvasOpen(true);
-    setCurrentHighlight(0);
+    dispatch(setSelectedDocumentGlobal(docForPreview as any));
+    dispatch(setIsCanvasOpenGlobal(true));
+    dispatch(setCurrentHighlightGlobal(0));
   };
 
   const handleNewChat = () => {
-    setMessages([]);
-    setCurrentView('welcome');
-    setIsCanvasOpen(false);
-    setSelectedDocument(null);
-    setSessionId(null);
+    dispatch(clearConversationGlobal());
   };
 
   // 删除会话
@@ -334,12 +385,12 @@ const Home: React.FC = () => {
     if (!sessionId) return;
     
     try {
-      const response = await qaAPI.sendFeedback(sessionId, parseInt(messageId), { feedback });
+      // 提取原始消息ID（去除后缀）
+      const originalMessageId = messageId.includes('-') ? messageId.split('-')[0] : messageId;
+      
+      const response = await qaAPI.sendFeedback(sessionId, parseInt(originalMessageId), { feedback });
       if (response.success) {
-        setFeedbackStatus(prev => ({
-          ...prev,
-          [messageId]: feedback
-        }));
+        dispatch(setFeedbackStatusGlobal({ messageId, value: feedback }));
       }
     } catch (error) {
       console.error('发送反馈失败:', error);
@@ -357,42 +408,35 @@ const Home: React.FC = () => {
       e.preventDefault();
       handleSendMessage();
     }
-  };
-
-  const navigateHighlight = (direction: 'prev' | 'next') => {
-    if (!selectedDocument) return;
-    
-    const totalHighlights = selectedDocument.highlights.length;
-    if (direction === 'prev') {
-      setCurrentHighlight(prev => prev > 0 ? prev - 1 : totalHighlights - 1);
-    } else {
-      setCurrentHighlight(prev => prev < totalHighlights - 1 ? prev + 1 : 0);
+    // ESC键关闭侧边栏（移动端）
+    if (e.key === 'Escape' && !sidebarCollapsed && window.innerWidth <= 768) {
+      setSidebarCollapsed(true);
     }
   };
 
-  const formatTime = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    
-    if (hours < 1) return '刚刚';
-    if (hours < 24) return `${hours}小时前`;
-    return `${Math.floor(hours / 24)}天前`;
-  };
+  // 未使用的辅助函数移除以通过Lint
 
   return (
     <HomeContainer>
+      {/* 移动端遮罩层 */}
+      {!sidebarCollapsed && (
+        <MobileOverlay onClick={() => setSidebarCollapsed(true)} />
+      )}
+      
       {/* 左侧边栏 - 历史对话 */}
       <Sidebar className={sidebarCollapsed ? 'collapsed' : ''}>
+        {/* 折叠时仅保留一个展开按钮，隐藏其余所有内容 */}
         <SidebarHeader>
-          <Button 
-            type="primary" 
-            className="new-chat-btn"
-            onClick={handleNewChat}
-          >
-            + 新建对话
-          </Button>
-          <Button 
+          {!sidebarCollapsed && (
+            <Button 
+              type="primary" 
+              className="new-chat-btn"
+              onClick={handleNewChat}
+            >
+              + 新建对话
+            </Button>
+          )}
+            <Button 
             type="text" 
             className="sidebar-toggle"
             icon={<MenuOutlined />}
@@ -400,40 +444,40 @@ const Home: React.FC = () => {
           />
         </SidebarHeader>
         
-        <ChatHistoryContainer>
-          {isLoadingHistory ? (
-            <div className="loading-history">加载中...</div>
-          ) : (
-            chatHistory.map(chat => (
-              <ChatItem 
-                key={chat.session_id} 
-                className={`chat-item ${chat.session_id === sessionId ? 'active' : ''}`}
-                onClick={() => loadHistorySession(chat.session_id)}
-              >
-                <div className="chat-content">
-                  <div className="chat-title">{chat.session_title || chat.first_message}</div>
-                  <div className="chat-time">{formatTime(new Date(chat.created_at))}</div>
-                  <div className="chat-count">{chat.message_count} 条消息</div>
-                </div>
-                <Button 
-                  type="text" 
-                  size="small" 
-                  className="delete-btn"
-                  onClick={(e) => deleteSession(chat.session_id, e)}
+        {!sidebarCollapsed && (
+          <ChatHistoryContainer>
+            {isLoadingHistory ? (
+              <div className="loading-history">加载中...</div>
+            ) : (
+              chatHistory.map(chat => (
+                <ChatItem 
+                  key={chat.session_id} 
+                  className={`chat-item ${chat.session_id === sessionId ? 'active' : ''}`}
+                  onClick={() => { dispatch(setIsViewingHistoryGlobal(true)); loadHistorySession(chat.session_id); }}
                 >
-                  ×
-                </Button>
-              </ChatItem>
-            ))
-          )}
-        </ChatHistoryContainer>
+                  <div className="chat-content">
+                    <div className="chat-title">{chat.session_title || chat.first_message}</div>
+                  </div>
+                  <Button 
+                    type="text" 
+                    size="small" 
+                    className="delete-btn"
+                    onClick={(e) => deleteSession(chat.session_id, e)}
+                  >
+                    ×
+                  </Button>
+                </ChatItem>
+              ))
+            )}
+          </ChatHistoryContainer>
+        )}
       </Sidebar>
 
       {/* 右侧主要内容区域 */}
       <ContentArea className={isCanvasOpen ? 'canvas-active' : ''}>
         <MainContent>
           {/* 欢迎界面 - 初始状态 */}
-          {currentView === 'welcome' && (
+          {currentView === 'welcome' && !isViewingHistory && (
             <WelcomeScreen className="main-content">
               <div className="welcome-title">智能合约问答助手</div>
               <div className="welcome-subtitle">
@@ -447,7 +491,7 @@ const Home: React.FC = () => {
                   className="search-input"
                   placeholder="输入您的问题，开始智能合约问答..."
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={(e) => dispatch(setInputValueGlobal(e.target.value))}
                   onKeyPress={handleKeyPress}
                   suffix={
                     <Button 
@@ -473,21 +517,13 @@ const Home: React.FC = () => {
           {/* 对话界面 - 激活状态 */}
           {currentView === 'chat' && (
             <ChatScreen className="active main-content">
-              <ChatHeader>
-                <div className="chat-title-area">
-                  <Button 
-                    type="text" 
-                    className="sidebar-toggle-btn"
-                    icon={<MenuOutlined />}
-                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  />
-                  <div className="current-chat-title">智能合约问答</div>
-                </div>
-                <div className="chat-actions">
+              {/* 移除标题框，仅保留操作按钮（非历史查看时显示） */}
+              {!isViewingHistory && (
+                <QuickActions>
                   <Button className="action-btn">清空对话</Button>
                   <Button className="action-btn">导出对话</Button>
-                </div>
-              </ChatHeader>
+                </QuickActions>
+              )}
               
               <MessagesArea>
                 {messages.map(message => (
@@ -498,9 +534,9 @@ const Home: React.FC = () => {
                     <div className="message-content">
                       {message.content}
                       
-                      {/* 助理消息的反馈按钮 */}
-                      {message.type === 'assistant' && sessionId && (
-                        <div className="message-feedback">
+                      {/* 助理消息的反馈按钮（历史查看时隐藏） */}
+                      {message.type === 'assistant' && sessionId && !isViewingHistory && (
+                        <MessageFeedback>
                           <span className="feedback-label">这个回答对您有帮助吗？</span>
                           <div className="feedback-buttons">
                             <Button 
@@ -522,7 +558,7 @@ const Home: React.FC = () => {
                               👎 没帮助
                             </Button>
                           </div>
-                        </div>
+                        </MessageFeedback>
                       )}
                       
                       {/* 搜索结果区域 */}
@@ -533,7 +569,7 @@ const Home: React.FC = () => {
                             找到 {message.documentGroups.length} 个相关文档
                           </div>
                           
-                          {message.documentGroups.map((group, index) => (
+                          {message.documentGroups.map((group: any, index: number) => (
                             <ResultItem 
                               key={`${group.file_name}-${index}`} 
                               onClick={() => handleDocumentClick(group)}
@@ -554,7 +590,6 @@ const Home: React.FC = () => {
                               </div>
                               
                               <div className="result-snippet">
-                                {group.chunks[0].content_text.substring(0, 200)}...
                                 <div className="highlights">
                                   <strong>匹配内容 ({group.chunks.length}个片段):</strong>
                                   <div className="highlight-preview" 
@@ -589,7 +624,7 @@ const Home: React.FC = () => {
                     className="chat-input"
                     placeholder="输入您的问题..."
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={(e) => dispatch(setInputValueGlobal(e.target.value))}
                     onKeyPress={handleKeyPress}
                     autoSize={{ minRows: 1, maxRows: 4 }}
                   />
@@ -617,7 +652,7 @@ const Home: React.FC = () => {
             <Button 
               type="text" 
               icon={<CloseOutlined />} 
-              onClick={() => setIsCanvasOpen(false)}
+              onClick={() => dispatch(setIsCanvasOpenGlobal(false))}
               className="close-btn"
             />
           </div>
@@ -656,7 +691,7 @@ const Home: React.FC = () => {
                 
                 <div style={{ marginBottom: '16px' }}>
                   <h3 style={{ color: '#2d3748', marginBottom: '12px', fontSize: '16px' }}>匹配内容</h3>
-                  {selectedDocument.documentGroup.chunks.map((chunk, index) => (
+                  {selectedDocument.documentGroup.chunks.map((chunk: any, index: number) => (
                     <div key={chunk.id} style={{ 
                       marginBottom: '16px', 
                       padding: '12px', 
@@ -698,17 +733,47 @@ const HomeContainer = styled.div`
   color: #2d3748;
   position: relative;
   overflow: hidden;
+  
+  /* 移动端触摸优化 */
+  @media (max-width: 768px) {
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+  }
+  
+  /* 确保在小屏幕上不会出现水平滚动 */
+  @media (max-width: 480px) {
+    min-width: 100vw;
+  }
+`;
+
+const MobileOverlay = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
 `;
 
 const Sidebar = styled.div`
   width: 320px;
-  background: rgba(255, 255, 255, 0.8);
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
   border-right: 1px solid rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(20px);
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 0 15px rgba(0, 0, 0, 0.08);
+  height: 100vh;
+  position: relative;
+  z-index: 10;
+  overflow: hidden;
 
   &.collapsed {
     width: 60px;
@@ -719,6 +784,31 @@ const Sidebar = styled.div`
     
     .chat-history {
       display: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+    
+    &:not(.collapsed) {
+      transform: translateX(0);
+      width: 300px;
+    }
+    
+    &.collapsed {
+      transform: translateX(-100%);
+      width: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    &:not(.collapsed) {
+      width: 280px;
     }
   }
 `;
@@ -744,6 +834,11 @@ const SidebarHeader = styled.div`
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
     }
+    
+    @media (max-width: 768px) {
+      font-size: 13px;
+      padding: 8px 12px;
+    }
   }
 
   .sidebar-toggle {
@@ -753,6 +848,15 @@ const SidebarHeader = styled.div`
       color: #2d3748;
       background: rgba(0, 0, 0, 0.05);
     }
+    
+    @media (max-width: 768px) {
+      color: #2d3748;
+      background: rgba(0, 0, 0, 0.05);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    padding: 12px;
   }
 `;
 
@@ -760,6 +864,26 @@ const ChatHistoryContainer = styled.div`
   flex: 1;
   padding: 8px;
   overflow-y: auto;
+  overflow-x: hidden;
+  
+  /* 自定义滚动条 */
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 2px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+  }
   
   .loading-history {
     text-align: center;
@@ -770,17 +894,19 @@ const ChatHistoryContainer = styled.div`
 `;
 
 const ChatItem = styled.div`
-  padding: 12px;
+  padding: 10px;
   margin-bottom: 4px;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(102, 126, 234, 0.08);
+    transform: translateX(2px);
     
     .delete-btn {
       opacity: 1;
@@ -788,47 +914,93 @@ const ChatItem = styled.div`
   }
   
   &.active {
-    background: rgba(102, 126, 234, 0.1);
-    border: 1px solid rgba(102, 126, 234, 0.2);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 60%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 0 2px 2px 0;
+    }
   }
 
   .chat-content {
     flex: 1;
     min-width: 0;
+    padding-left: 8px;
   }
 
   .chat-title {
-    font-size: 14px;
+    font-size: 13px;
     color: #2d3748;
     margin-bottom: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
+    line-height: 1.3;
+    
+    @media (max-width: 768px) {
+      font-size: 12px;
+    }
   }
 
   .chat-time {
-    font-size: 12px;
+    font-size: 11px;
     color: #718096;
     margin-bottom: 2px;
+    
+    @media (max-width: 768px) {
+      font-size: 10px;
+    }
   }
   
   .chat-count {
-    font-size: 11px;
+    font-size: 10px;
     color: #a0aec0;
+    
+    @media (max-width: 768px) {
+      font-size: 9px;
+    }
   }
   
   .delete-btn {
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: all 0.2s ease;
     color: #e53e3e;
-    font-size: 16px;
+    font-size: 14px;
     padding: 4px;
+    border-radius: 4px;
+    min-width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     
     &:hover {
-      background: rgba(229, 62, 62, 0.1);
+      background: rgba(229, 62, 62, 0.15);
       color: #c53030;
+      transform: scale(1.1);
     }
+    
+    @media (max-width: 768px) {
+      opacity: 0.6;
+      font-size: 12px;
+      min-width: 20px;
+      height: 20px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px;
+    margin-bottom: 3px;
   }
 `;
 
@@ -839,6 +1011,12 @@ const ContentArea = styled.div`
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   height: 100vh;
+  min-width: 0;
+  
+  @media (max-width: 768px) {
+    width: 100%;
+    margin-left: 0;
+  }
 `;
 
 const MainContent = styled.div`
@@ -847,6 +1025,11 @@ const MainContent = styled.div`
   flex-direction: column;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
+  position: relative;
+  
+  @media (max-width: 768px) {
+    width: 100%;
+  }
 `;
 
 const DocumentPanel = styled.div`
@@ -861,6 +1044,20 @@ const DocumentPanel = styled.div`
   
   &.open {
     width: 500px;
+    
+    @media (max-width: 1200px) {
+      width: 400px;
+    }
+    
+    @media (max-width: 768px) {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 100vh;
+      z-index: 1001;
+      border-left: none;
+    }
   }
   
   .panel-header {
@@ -878,6 +1075,10 @@ const DocumentPanel = styled.div`
       font-size: 16px;
       font-weight: 500;
       color: #2d3748;
+      
+      @media (max-width: 768px) {
+        font-size: 14px;
+      }
     }
     
     .close-btn {
@@ -887,6 +1088,18 @@ const DocumentPanel = styled.div`
         color: #2d3748;
         background: rgba(0, 0, 0, 0.05);
       }
+      
+      @media (max-width: 768px) {
+        color: #2d3748;
+        background: rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        width: 32px;
+        height: 32px;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      padding: 12px 16px;
     }
   }
   
@@ -895,6 +1108,14 @@ const DocumentPanel = styled.div`
     overflow-y: auto;
     padding: 20px;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+    
+    @media (max-width: 768px) {
+      padding: 16px;
+    }
+    
+    @media (max-width: 480px) {
+      padding: 12px;
+    }
   }
 `;
 
@@ -938,6 +1159,15 @@ const WelcomeScreen = styled.div`
     letter-spacing: -0.02em;
     position: relative;
     z-index: 1;
+    
+    @media (max-width: 768px) {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+    }
+    
+    @media (max-width: 480px) {
+      font-size: 2rem;
+    }
   }
 
   .welcome-subtitle {
@@ -951,6 +1181,21 @@ const WelcomeScreen = styled.div`
     position: relative;
     z-index: 1;
     color: #4a5568;
+    
+    @media (max-width: 768px) {
+      font-size: 1.1rem;
+      margin-bottom: 32px;
+      max-width: 90%;
+    }
+    
+    @media (max-width: 480px) {
+      font-size: 1rem;
+      margin-bottom: 24px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    padding: 20px;
   }
 `;
 
@@ -958,11 +1203,35 @@ const ChatScreen = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0; /* 关键：允许内部可滚动区域正确计算高度 */
   height: 100%;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
   color: #2d3748;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
+`;
+
+// 简化的快捷操作区域组件
+const QuickActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+
+  .action-btn {
+    color: #718096;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    background: transparent;
+
+    &:hover {
+      color: #2d3748;
+      border-color: rgba(0, 0, 0, 0.3);
+      background: rgba(0, 0, 0, 0.05);
+    }
+  }
 `;
 
 const ChatHeader = styled.div`
@@ -987,17 +1256,31 @@ const ChatHeader = styled.div`
       color: #2d3748;
       background: rgba(0, 0, 0, 0.05);
     }
+    
+    @media (max-width: 768px) {
+      color: #2d3748;
+      background: rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
   }
   
   .current-chat-title {
     font-size: 16px;
     font-weight: 500;
     color: #2d3748;
+    
+    @media (max-width: 768px) {
+      font-size: 14px;
+    }
   }
   
   .chat-actions {
     display: flex;
     gap: 8px;
+    
+    @media (max-width: 768px) {
+      display: none;
+    }
   }
   
   .action-btn {
@@ -1017,6 +1300,14 @@ const MessagesArea = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 12px;
+  }
 `;
 
 const Message = styled.div`
@@ -1033,6 +1324,10 @@ const Message = styled.div`
       color: #2d3748;
       max-width: 80%;
       width: fit-content;
+      
+      @media (max-width: 768px) {
+        max-width: 90%;
+      }
     }
   }
   
@@ -1043,6 +1338,10 @@ const Message = styled.div`
       color: #2d3748;
       max-width: 85%;
       width: fit-content;
+      
+      @media (max-width: 768px) {
+        max-width: 95%;
+      }
     }
   }
   
@@ -1056,6 +1355,11 @@ const Message = styled.div`
     justify-content: center;
     color: #4a5568;
     flex-shrink: 0;
+    
+    @media (max-width: 768px) {
+      width: 28px;
+      height: 28px;
+    }
   }
   
   .message-content {
@@ -1064,9 +1368,102 @@ const Message = styled.div`
     line-height: 1.6;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    
+    @media (max-width: 768px) {
+      padding: 10px 14px;
+      font-size: 14px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    gap: 8px;
+    margin-bottom: 20px;
   }
 `;
 
+const MessageFeedback = styled.div`
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  
+  .feedback-label {
+    font-size: 12px;
+    color: #718096;
+    
+    @media (max-width: 768px) {
+      font-size: 11px;
+    }
+  }
+  
+  .feedback-buttons {
+    display: flex;
+    gap: 8px;
+    
+    @media (max-width: 768px) {
+      gap: 6px;
+    }
+  }
+  
+  .feedback-btn {
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    background: transparent;
+    color: #718096;
+    font-size: 12px;
+    padding: 4px 8px;
+    height: 28px;
+    
+    &:hover:not(:disabled) {
+      color: #2d3748;
+      border-color: rgba(0, 0, 0, 0.25);
+      background: rgba(0, 0, 0, 0.05);
+    }
+    
+    &.helpful {
+      &:hover:not(:disabled) {
+        color: #38a169;
+        border-color: #38a169;
+        background: rgba(56, 161, 105, 0.1);
+      }
+      
+      &.ant-btn-primary {
+        color: #38a169;
+        border-color: #38a169;
+        background: rgba(56, 161, 105, 0.1);
+      }
+    }
+    
+    &.not-helpful {
+      &:hover:not(:disabled) {
+        color: #e53e3e;
+        border-color: #e53e3e;
+        background: rgba(229, 62, 62, 0.1);
+      }
+      
+      &.ant-btn-primary {
+        color: #e53e3e;
+        border-color: #e53e3e;
+        background: rgba(229, 62, 62, 0.1);
+      }
+    }
+    
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    @media (max-width: 768px) {
+      font-size: 11px;
+      padding: 3px 6px;
+      height: 24px;
+    }
+  }
+`;
+
+// Unused styled components retained for potential future features
+/* eslint-disable @typescript-eslint/no-unused-vars */
 const FeedbackButtons = styled.div`
   margin-top: 12px;
   padding-top: 12px;
@@ -1141,6 +1538,11 @@ const SearchResults = styled.div`
     margin-bottom: 12px;
     font-size: 14px;
     color: #718096;
+    
+    @media (max-width: 768px) {
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
   }
   
   .source-badge {
@@ -1149,6 +1551,11 @@ const SearchResults = styled.div`
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 12px;
+    
+    @media (max-width: 768px) {
+      font-size: 11px;
+      padding: 1px 6px;
+    }
   }
 `;
 
@@ -1176,10 +1583,18 @@ const ResultItem = styled.div`
     gap: 8px;
     font-weight: 500;
     color: #2d3748;
+    
+    @media (max-width: 768px) {
+      font-size: 14px;
+    }
   }
   
   .file-icon {
     font-size: 16px;
+    
+    @media (max-width: 768px) {
+      font-size: 14px;
+    }
   }
   
   .result-meta {
@@ -1188,6 +1603,17 @@ const ResultItem = styled.div`
     margin-bottom: 8px;
     font-size: 12px;
     color: #718096;
+    flex-wrap: wrap;
+    
+    @media (max-width: 768px) {
+      gap: 12px;
+      font-size: 11px;
+    }
+    
+    @media (max-width: 480px) {
+      gap: 8px;
+      font-size: 10px;
+    }
   }
   
   .relevance-score {
@@ -1199,6 +1625,11 @@ const ResultItem = styled.div`
     color: #4a5568;
     line-height: 1.5;
     margin-bottom: 8px;
+    
+    @media (max-width: 768px) {
+      font-size: 13px;
+      line-height: 1.4;
+    }
   }
   
   .highlights {
@@ -1209,6 +1640,10 @@ const ResultItem = styled.div`
       font-size: 12px;
       display: block;
       margin-bottom: 6px;
+      
+      @media (max-width: 768px) {
+        font-size: 11px;
+      }
     }
     
     .highlight-preview {
@@ -1228,12 +1663,22 @@ const ResultItem = styled.div`
         font-style: normal;
         font-weight: 500;
       }
+      
+      @media (max-width: 768px) {
+        padding: 6px;
+        font-size: 12px;
+      }
     }
   }
   
   .result-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+    
+    @media (max-width: 768px) {
+      gap: 6px;
+    }
   }
   
   .action-chip {
@@ -1249,6 +1694,16 @@ const ResultItem = styled.div`
       background: rgba(0, 0, 0, 0.15);
       color: #2d3748;
     }
+    
+    @media (max-width: 768px) {
+      font-size: 11px;
+      padding: 3px 6px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    padding: 10px;
+    margin-bottom: 6px;
   }
 `;
 
@@ -1284,6 +1739,11 @@ const InputArea = styled.div`
       outline: none;
       box-shadow: none;
     }
+    
+    @media (max-width: 768px) {
+      font-size: 14px;
+      padding: 6px 10px;
+    }
   }
   
   .send-btn {
@@ -1309,6 +1769,24 @@ const InputArea = styled.div`
       cursor: not-allowed;
       background: linear-gradient(135deg, #a0aec0 0%, #cbd5e0 100%);
     }
+    
+    @media (max-width: 768px) {
+      width: 36px;
+      height: 36px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    padding: 12px 16px;
+    
+    .input-container {
+      padding: 6px;
+      gap: 6px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    padding: 10px 12px;
   }
 `;
 
@@ -1371,12 +1849,21 @@ const DocumentInfo = styled.div`
     color: #2d3748;
     margin-bottom: 12px;
     font-size: 16px;
+    
+    @media (max-width: 768px) {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
   }
   
   .document-meta {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    
+    @media (max-width: 768px) {
+      gap: 6px;
+    }
   }
   
   .meta-item {
@@ -1384,10 +1871,20 @@ const DocumentInfo = styled.div`
     justify-content: space-between;
     font-size: 14px;
     color: #2d3748;
+    
+    @media (max-width: 768px) {
+      font-size: 13px;
+      flex-direction: column;
+      gap: 2px;
+    }
   }
   
   .meta-label {
     color: #718096;
+    
+    @media (max-width: 768px) {
+      font-size: 12px;
+    }
   }
 `;
 
@@ -1415,6 +1912,11 @@ const DocumentContent = styled.div`
   .document-text {
     line-height: 1.6;
     color: #2d3748;
+    
+    @media (max-width: 768px) {
+      font-size: 14px;
+      line-height: 1.5;
+    }
   }
   
   .highlight {
@@ -1465,6 +1967,16 @@ const SearchContainer = styled.div`
       box-shadow: 0 12px 40px rgba(102, 126, 234, 0.15);
       transform: translateY(-2px);
     }
+    
+    @media (max-width: 768px) {
+      padding: 16px 50px 16px 20px;
+      font-size: 14px;
+    }
+    
+    @media (max-width: 480px) {
+      padding: 14px 45px 14px 16px;
+      font-size: 14px;
+    }
   }
 
   .search-btn {
@@ -1489,6 +2001,28 @@ const SearchContainer = styled.div`
       transform: translateY(-50%) scale(1.05);
       box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
     }
+    
+    @media (max-width: 768px) {
+      width: 38px;
+      height: 38px;
+      right: 6px;
+    }
+    
+    @media (max-width: 480px) {
+      width: 34px;
+      height: 34px;
+      right: 5px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    max-width: 90%;
+    margin-bottom: 32px;
+  }
+  
+  @media (max-width: 480px) {
+    max-width: 95%;
+    margin-bottom: 24px;
   }
 `;
 
@@ -1500,6 +2034,16 @@ const SuggestionsContainer = styled.div`
   margin-bottom: 50px;
   position: relative;
   z-index: 1;
+  
+  @media (max-width: 768px) {
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  
+  @media (max-width: 480px) {
+    gap: 8px;
+    margin-bottom: 24px;
+  }
 `;
 
 const SuggestionTag = styled.div`
@@ -1522,6 +2066,16 @@ const SuggestionTag = styled.div`
     transform: translateY(-3px);
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
     color: #2d3748;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 8px 14px;
+    font-size: 12px;
   }
 `;
 
