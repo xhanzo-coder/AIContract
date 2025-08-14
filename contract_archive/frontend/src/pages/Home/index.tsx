@@ -193,6 +193,11 @@ const Home: React.FC = () => {
         dispatch(setSessionIdGlobal(sessionId));
         dispatch(setCurrentViewGlobal('chat'));
         dispatch(setIsViewingHistoryGlobal(true));
+        
+        // 延迟滚动到底部，确保历史消息加载完成后显示最新对话
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
       }
     } catch (error) {
       console.error('加载历史会话失败:', error);
