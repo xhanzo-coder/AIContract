@@ -816,6 +816,25 @@ const Sidebar = styled.div`
   position: relative;
   z-index: 10;
   overflow: hidden;
+  
+  /* 自定义滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+  }
 
   &.collapsed {
     width: 60px;
@@ -1054,6 +1073,7 @@ const ContentArea = styled.div`
   position: relative;
   height: 100vh;
   min-width: 0;
+  overflow: hidden;
   
   @media (max-width: 768px) {
     width: 100%;
@@ -1068,6 +1088,8 @@ const MainContent = styled.div`
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
   position: relative;
+  height: 100vh;
+  overflow: hidden;
   
   @media (max-width: 768px) {
     width: 100%;
@@ -1083,6 +1105,7 @@ const DocumentPanel = styled.div`
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   backdrop-filter: blur(10px);
+  height: 100vh;
   
   &.open {
     width: 500px;
@@ -1150,6 +1173,25 @@ const DocumentPanel = styled.div`
     overflow-y: auto;
     padding: 20px;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+    
+    /* 自定义滚动条样式 */
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 3px;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+      
+      &:hover {
+        background: rgba(0, 0, 0, 0.3);
+      }
+    }
     
     @media (max-width: 768px) {
       padding: 16px;
@@ -1246,11 +1288,12 @@ const ChatScreen = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0; /* 关键：允许内部可滚动区域正确计算高度 */
-  height: 100%;
+  height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
   color: #2d3748;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
+  overflow: hidden;
 `;
 
 // 简化的快捷操作区域组件
@@ -1342,6 +1385,25 @@ const MessagesArea = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  
+  /* 自定义滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    
+    &:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+  }
   
   @media (max-width: 768px) {
     padding: 16px;
@@ -1862,6 +1924,10 @@ const InputArea = styled.div`
   padding: 16px 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   background: transparent;
+  flex-shrink: 0; /* 防止输入框被压缩 */
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
   
   .input-container {
     display: flex;
