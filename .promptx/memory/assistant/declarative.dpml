@@ -52,4 +52,34 @@
     </content>
     <tags>#其他</tags>
   </item>
+  <item id="mem_1755145814290_zq7nj772g" time="2025/08/14 12:30">
+    <content>
+      用户强调前端项目运行在3000端口，不是5173端口。用户描述的问题：当点击历史对话列表中的对话时，只有用户和系统的对话框应该自动向上滑动显示最底端对话，但显示历史对话列表的两个div框不应移动，不应被header遮挡，应固定在原位，只有其内部的历史对话记录可以滚动。
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1755145844247_rjt7cbk8v" time="2025/08/14 12:30">
+    <content>
+      前端任务运行在3000端口上。用户强调了多次这个重要信息。
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1755145899142_tugac8yhp" time="2025/08/14 12:31">
+    <content>
+      用户反馈前端任务运行在3000端口。用户遇到的问题：当点击历史对话列表中的某个对话时，应该只有MessagesArea（用户和系统的对话框）自动滚动到底部，让用户看到最底端的对话。但是Sidebar中显示历史对话列表的两个div框（SidebarHeader和ChatHistoryContainer）不应该移动。用户希望SidebarHeader固定不被header遮挡，ChatHistoryContainer中只有历史对话记录可以滚动。当前的scrollToBottom函数可能影响了整个页面的滚动行为。
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1755145985889_2fgfucklo" time="2025/08/14 12:33">
+    <content>
+      前端任务运行在3000端口上，用户强调了这个重要信息需要记住。
+    </content>
+    <tags>#其他</tags>
+  </item>
+  <item id="mem_1755146432860_7sga4tx42" time="2025/08/14 12:40">
+    <content>
+      前端任务运行在3000端口上，用户多次强调这一点，需要记住这个重要信息。
+    </content>
+    <tags>#其他</tags>
+  </item>
 </memory>

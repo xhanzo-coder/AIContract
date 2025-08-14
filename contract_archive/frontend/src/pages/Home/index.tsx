@@ -114,8 +114,11 @@ const Home: React.FC = () => {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // 只在非查看历史状态下自动滚动到底部
+    if (!isViewingHistory) {
+      scrollToBottom();
+    }
+  }, [messages, isViewingHistory]);
 
   // 获取会话列表
   const loadChatHistory = async () => {
@@ -189,6 +192,7 @@ const Home: React.FC = () => {
         dispatch(setMessagesGlobal(historyMessages as any));
         dispatch(setSessionIdGlobal(sessionId));
         dispatch(setCurrentViewGlobal('chat'));
+        dispatch(setIsViewingHistoryGlobal(true));
       }
     } catch (error) {
       console.error('加载历史会话失败:', error);
@@ -240,6 +244,7 @@ const Home: React.FC = () => {
     dispatch(setInputValueGlobal(''));
     dispatch(setCurrentViewGlobal('chat'));
     dispatch(setIsSearchingGlobal(true));
+    dispatch(setIsViewingHistoryGlobal(false)); // 发送新消息时退出历史查看模式
     
     // 添加加载中的助手消息
     const loadingMessage: ChatMessage = {
@@ -691,18 +696,20 @@ const Home: React.FC = () => {
               <span>📄</span>
               {selectedDocument?.documentGroup?.contract_name || selectedDocument?.title || '文档详情'}
             </div>
-            <Button 
-              type="text" 
-              icon={<CloseOutlined />} 
-              onClick={() => dispatch(setIsCanvasOpenGlobal(false))}
-              className="close-btn"
-            />
           </div>
           <div className="panel-content">
             {selectedDocument && selectedDocument.documentGroup && (
               <>
                 <DocumentInfo>
-                  <h3>文档信息</h3>
+                  <div className="document-header">
+                    <h3>文档信息</h3>
+                    <button 
+                      className="close-btn"
+                      onClick={() => dispatch(setIsCanvasOpenGlobal(false))}
+                    >
+                      <CloseOutlined />
+                    </button>
+                  </div>
                   <div className="document-meta">
                     <div className="meta-item">
                       <span className="meta-label">文件名:</span>
@@ -774,7 +781,7 @@ const HomeContainer = styled.div`
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
   color: #2d3748;
   position: relative;
-  overflow: hidden;
+  /* 移除 overflow: hidden 以允许子组件的 sticky 定位正常工作 */
   
   /* 移动端触摸优化 */
   @media (max-width: 768px) {
@@ -881,6 +888,12 @@ const SidebarHeader = styled.div`
   gap: 8px;
   align-items: center;
   justify-content: center;
+  /* 固定在顶部，不随滚动 */
+  position: sticky;
+  top: 0;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+  z-index: 11;
+  flex-shrink: 0;
 
   .new-chat-btn {
     flex: 1;
@@ -926,6 +939,11 @@ const ChatHistoryContainer = styled.div`
   padding: 8px;
   overflow-y: auto;
   overflow-x: hidden;
+  /* 确保历史对话列表可以滚动，占据剩余空间 */
+  min-height: 0;
+  /* 移除固定高度，让其自然占据剩余空间 */
+  /* 阻止滚动事件冒泡到父容器 */
+  overscroll-behavior: contain;
   
   /* 自定义滚动条 */
   &::-webkit-scrollbar {
@@ -1073,7 +1091,7 @@ const ContentArea = styled.div`
   position: relative;
   height: 100vh;
   min-width: 0;
-  overflow: hidden;
+  /* 移除 overflow: hidden，允许内容正常显示 */
   
   @media (max-width: 768px) {
     width: 100%;
@@ -1089,7 +1107,7 @@ const MainContent = styled.div`
   min-width: 0;
   position: relative;
   height: 100vh;
-  overflow: hidden;
+  /* 移除 overflow: hidden，允许内容正常显示 */
   
   @media (max-width: 768px) {
     width: 100%;
@@ -1103,9 +1121,10 @@ const DocumentPanel = styled.div`
   display: flex;
   flex-direction: column;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  /* 允许内容正常显示和滚动 */
   backdrop-filter: blur(10px);
   height: 100vh;
+  flex-shrink: 0; /* 防止被压缩 */
   
   &.open {
     width: 500px;
@@ -1173,6 +1192,8 @@ const DocumentPanel = styled.div`
     overflow-y: auto;
     padding: 20px;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+    /* 阻止滚动事件冒泡到父容器 */
+    overscroll-behavior: contain;
     
     /* 自定义滚动条样式 */
     &::-webkit-scrollbar {
@@ -1293,7 +1314,15 @@ const ChatScreen = styled.div`
   color: #2d3748;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
-  overflow: hidden;
+  /* 确保聊天屏幕可以正常显示所有内容 */
+  position: relative;
+  
+  @media (max-width: 768px) {
+  }
+  
+  @media (max-width: 480px) {
+    padding-bottom: 70px;
+  }
 `;
 
 // 简化的快捷操作区域组件
@@ -1384,7 +1413,13 @@ const ChatHeader = styled.div`
 const MessagesArea = styled.div`
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px;
+  /* 确保对话记录区域可以滚动，占据剩余空间 */
+  min-height: 0;
+  /* 移除固定高度，让其自然占据剩余空间 */
+  /* 阻止滚动事件冒泡到父容器 */
+  overscroll-behavior: contain;
   
   /* 自定义滚动条样式 */
   &::-webkit-scrollbar {
@@ -1411,6 +1446,7 @@ const MessagesArea = styled.div`
   
   @media (max-width: 480px) {
     padding: 12px;
+    padding-bottom: 70px;
   }
 `;
 
@@ -1923,11 +1959,15 @@ const ResultItem = styled.div`
 const InputArea = styled.div`
   padding: 16px 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
-  background: transparent;
+  background: rgba(248, 250, 252, 0.95);
+  backdrop-filter: blur(10px);
   flex-shrink: 0; /* 防止输入框被压缩 */
   position: sticky;
   bottom: 0;
-  z-index: 10;
+  z-index: 1002; /* 确保高于所有其他元素 */
+  /* 添加额外的定位保证 */
+  width: 100%;
+  box-sizing: border-box;
   
   .input-container {
     display: flex;
@@ -2062,14 +2102,46 @@ const CanvasContent = styled.div`
 const DocumentInfo = styled.div`
   margin-bottom: 16px;
   
-  h3 {
-    color: #2d3748;
+  .document-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 12px;
-    font-size: 16px;
     
-    @media (max-width: 768px) {
-      font-size: 14px;
-      margin-bottom: 10px;
+    h3 {
+      color: #2d3748;
+      font-size: 16px;
+      margin: 0;
+      flex: 1;
+      
+      @media (max-width: 768px) {
+        font-size: 14px;
+      }
+    }
+    
+    .close-btn {
+      color: #718096;
+      border: none;
+      background: transparent;
+      padding: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      
+      &:hover {
+        color: #2d3748;
+        background: rgba(0, 0, 0, 0.05);
+      }
+      
+      @media (max-width: 768px) {
+        color: #2d3748;
+        background: rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
     }
   }
   

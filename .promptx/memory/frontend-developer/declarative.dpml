@@ -124,4 +124,10 @@
     </content>
     <tags>#流程管理</tags>
   </item>
+  <item id="mem_1755145732820_u87u1ucel" time="2025/08/14 12:28">
+    <content>
+      前端项目运行在3000端口上，不是5173端口。用户明确强调了这一点需要记住。
+    </content>
+    <tags>#其他</tags>
+  </item>
 </memory>
