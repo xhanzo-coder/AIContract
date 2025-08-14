@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input } from 'antd';
 import { 
   MenuOutlined,
@@ -7,6 +7,7 @@ import {
   RobotOutlined,
   CloseOutlined
 } from '@ant-design/icons';
+import ReactMarkdown from 'react-markdown';
 //
 import styled from 'styled-components';
 import { qaAPI } from '../../services/api';
@@ -71,6 +72,18 @@ interface ChatHistory {
   created_at: string;
   message_count: number;
 }
+
+// 加载骨架屏组件 - 模拟段落文本
+// 跳动小点加载组件
+const LoadingDots: React.FC = () => {
+  return (
+    <DotsContainer>
+      <Dot delay="0s" />
+      <Dot delay="0.2s" />
+      <Dot delay="0.4s" />
+    </DotsContainer>
+  );
+};
 
 const Home: React.FC = () => {
   
@@ -228,6 +241,16 @@ const Home: React.FC = () => {
     dispatch(setCurrentViewGlobal('chat'));
     dispatch(setIsSearchingGlobal(true));
     
+    // 添加加载中的助手消息
+    const loadingMessage: ChatMessage = {
+      id: (Date.now() + 0.5).toString(),
+      type: 'assistant',
+      content: 'loading',
+      timestamp: new Date()
+    };
+    
+    dispatch(addMessageGlobal(loadingMessage as any));
+    
     try {
       // 调用QA问答接口（使用混合RAG流程）
       const payload = { question: query, session_id: sessionId ?? undefined };
@@ -276,6 +299,10 @@ const Home: React.FC = () => {
       // 按文件分组
       const documentGroups = groupChunksByFile(chunks);
       
+      // 移除加载消息
+      const currentMessages = messages.filter(msg => msg.content !== 'loading');
+      dispatch(setMessagesGlobal(currentMessages as any));
+      
       // 创建助手消息，优先显示AI回答
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -291,6 +318,11 @@ const Home: React.FC = () => {
       dispatch(addMessageGlobal(assistantMessage as any));
     } catch (error) {
       console.error('搜索失败:', error);
+      
+      // 移除加载消息
+      const currentMessages = messages.filter(msg => msg.content !== 'loading');
+      dispatch(setMessagesGlobal(currentMessages as any));
+      
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
@@ -528,11 +560,21 @@ const Home: React.FC = () => {
               <MessagesArea>
                 {messages.map(message => (
                   <Message key={message.id} className={message.type}>
-                    <div className="message-avatar">
+                    <div className={`message-avatar ${message.content === 'loading' ? 'loading-pulse' : ''}`}>
                       {message.type === 'user' ? <UserOutlined /> : <RobotOutlined />}
                     </div>
                     <div className="message-content">
-                      {message.content}
+                      <MessageContentWrapper>
+                      {message.content === 'loading' ? (
+                        <LoadingDots />
+                      ) : message.type === 'assistant' ? (
+                        <AssistantContent>
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                        </AssistantContent>
+                      ) : (
+                        <UserContent>{message.content}</UserContent>
+                      )}
+                    </MessageContentWrapper>
                       
                       {/* 助理消息的反馈按钮（历史查看时隐藏） */}
                       {message.type === 'assistant' && sessionId && !isViewingHistory && (
@@ -1342,6 +1384,74 @@ const Message = styled.div`
       @media (max-width: 768px) {
         max-width: 95%;
       }
+      
+      /* Markdown样式 */
+      p {
+        margin: 0 0 12px 0;
+        line-height: 1.6;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+      
+      h1, h2, h3, h4, h5, h6 {
+        margin: 16px 0 8px 0;
+        font-weight: 600;
+        color: #2d3748;
+        
+        &:first-child {
+          margin-top: 0;
+        }
+      }
+      
+      ul, ol {
+        margin: 8px 0 12px 0;
+        padding-left: 20px;
+        
+        li {
+          margin-bottom: 4px;
+          line-height: 1.5;
+        }
+      }
+      
+      strong {
+        font-weight: 600;
+        color: #1a202c;
+      }
+      
+      em {
+        font-style: italic;
+      }
+      
+      code {
+        background: rgba(0, 0, 0, 0.1);
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+      }
+      
+      pre {
+        background: rgba(0, 0, 0, 0.05);
+        padding: 12px;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 8px 0;
+        
+        code {
+          background: none;
+          padding: 0;
+        }
+      }
+      
+      blockquote {
+        border-left: 4px solid rgba(102, 126, 234, 0.3);
+        padding-left: 12px;
+        margin: 8px 0;
+        color: #4a5568;
+        font-style: italic;
+      }
     }
   }
   
@@ -1355,10 +1465,51 @@ const Message = styled.div`
     justify-content: center;
     color: #4a5568;
     flex-shrink: 0;
+    transition: all 0.3s ease;
+    
+    &.loading-pulse {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      animation: pulse 1.8s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.8);
+      transform: scale(1);
+    }
+    
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.8);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 10px rgba(102, 126, 234, 0.2);
+        transform: scale(1.05);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
+        transform: scale(1);
+      }
+    }
     
     @media (max-width: 768px) {
       width: 28px;
       height: 28px;
+      
+      &.loading-pulse {
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.8);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 0 0 8px rgba(102, 126, 234, 0.2);
+            transform: scale(1.05);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
+            transform: scale(1);
+          }
+        }
+      }
     }
   }
   
@@ -2067,15 +2218,97 @@ const SuggestionTag = styled.div`
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
     color: #2d3748;
   }
-  
+
   @media (max-width: 768px) {
     padding: 10px 16px;
     font-size: 13px;
   }
-  
+
   @media (max-width: 480px) {
     padding: 8px 14px;
     font-size: 12px;
+  }
+`;
+
+// 跳动小点容器
+const DotsContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  justify-content: flex-start;
+  animation: fadeIn 0.3s ease-in;
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+// 跳动小点
+const Dot = styled.div<{ delay: string }>`
+  width: 6px;
+  height: 6px;
+  background: #9ca3af;
+  border-radius: 50%;
+  animation: bounce 1.4s ease-in-out infinite both;
+  animation-delay: ${props => props.delay};
+
+  @keyframes bounce {
+    0%, 80%, 100% {
+      transform: scale(0.8);
+      opacity: 0.4;
+    }
+    40% {
+      transform: scale(1.1);
+      opacity: 0.8;
+    }
+  }
+
+  @media (max-width: 768px) {
+    width: 5px;
+    height: 5px;
+  }
+`;
+
+// 消息内容包装器
+const MessageContentWrapper = styled.div`
+  width: 100%;
+`;
+
+// 助理回答内容
+const AssistantContent = styled.div`
+  animation: slideInFromDots 0.5s ease-out;
+  
+  @keyframes slideInFromDots {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+`;
+
+// 用户消息内容
+const UserContent = styled.div`
+  animation: fadeIn 0.3s ease-in;
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 `;
 
