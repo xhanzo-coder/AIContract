@@ -715,7 +715,7 @@ const Home: React.FC = () => {
                     value={inputValue}
                     onChange={(e) => dispatch(setInputValueGlobal(e.target.value))}
                     onKeyPress={handleKeyPress}
-                    autoSize={{ minRows: 1, maxRows: 4 }}
+                    autoSize={{ minRows: 3, maxRows: 10 }}
                   />
                   <Button 
                     className="send-btn"
@@ -1358,7 +1358,7 @@ const ChatScreen = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0; /* 关键：允许内部可滚动区域正确计算高度 */
-  height: 100vh; /* 使用全高，输入区已固定到底部 */
+  height: calc(100vh - 100px); /* 减少高度为InputArea留出空间，避免被遮挡 */
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
   color: #2d3748;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1367,11 +1367,11 @@ const ChatScreen = styled.div`
   /* 确保聊天屏幕内的元素正确分配空间：MessagesArea占满剩余空间，InputArea固定在底部 */
   
   @media (max-width: 768px) {
-    height: 100vh; /* 移动端同样使用全高 */
+    height: calc(100vh - 90px); /* 移动端减少高度为InputArea留出空间 */
   }
   
   @media (max-width: 480px) {
-    height: 100vh;
+    height: calc(100vh - 80px); /* 小屏设备进一步减少高度 */
   }
 `;
 
@@ -1467,8 +1467,8 @@ const MessagesArea = styled.div`
   padding: 24px;
   /* 确保对话记录区域可以滚动，占据剩余空间 */
   min-height: 0;
-  /* 为固定在底部的输入区留出空间，避免内容被遮挡 */
-  padding-bottom: 120px;
+  /* 添加底部内边距为sticky的InputArea留出显示空间，防止内容被遮挡 */
+  padding-bottom: 20px; /* 大幅减少底部padding，因为ChatScreen高度已经调整 */
   /* 阻止滚动事件冒泡到父容器 */
   overscroll-behavior: contain;
   
@@ -2010,44 +2010,34 @@ const ResultItem = styled.div`
 
 const InputArea = styled.div`
   padding: 16px 24px;
-  border-top: none; /* 移除背景条的顶部边框 */
-  background: transparent; /* 让左右两侧背景透明，仅保留中间卡片 */
-  backdrop-filter: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
+  backdrop-filter: blur(10px);
   flex-shrink: 0; /* 防止输入框被压缩 */
-  position: fixed; /* 固定在视口底部，避免被裁剪 */
-  left: 0;
-  right: 0;
-  bottom: 12px; /* 在底部预留少量空间 */
+  position: sticky; /* 使用sticky定位，作为ChatScreen的一部分 */
+  bottom: 10px; /* 在底部预留少量空间 */
   z-index: 1002; /* 提高层级，确保在移动端 DocumentPanel(z-index:1001) 打开时仍可见 */
   width: 100%; /* 跟随父容器宽度 */
   box-sizing: border-box;
-  display: flex;
-  justify-content: center; /* 水平居中 */
   
   .input-container {
     display: flex;
     gap: 8px;
     align-items: flex-end;
-    background: rgba(255, 255, 255, 0.95); /* 更接近纯白 */
-    border-radius: 28px; /* 胶囊形大圆角 */
-    padding: 10px 12px; /* 提高整体高度 */
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    padding: 8px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
-    max-width: 800px; /* 设置最大宽度 */
-    width: 90%; /* 自适应宽度，但不超过90% */
-    min-width: 300px; /* 设置最小宽度 */
   }
   
   .chat-input {
     flex: 1;
     background: transparent;
     border: none;
-    border-radius: 24px; /* 内层同样圆润 */
+    border-radius: 12px;
     color: #2d3748;
-    padding: 6px 8px; /* 具体高度由外层控制 */
-    min-height: 32px; /* 单行高度 */
-    line-height: 20px;
-    font-size: 14px;
+    padding: 8px 12px;
     
     &::placeholder {
       color: #718096;
@@ -2100,18 +2090,11 @@ const InputArea = styled.div`
     .input-container {
       padding: 6px;
       gap: 6px;
-      width: 95%; /* 移动端稍微增加宽度 */
-      min-width: 280px; /* 移动端减少最小宽度 */
     }
   }
   
   @media (max-width: 480px) {
     padding: 10px 12px;
-    
-    .input-container {
-      width: 98%; /* 小屏幕设备进一步增加宽度 */
-      min-width: 250px; /* 小屏幕设备进一步减少最小宽度 */
-    }
   }
 `;
 

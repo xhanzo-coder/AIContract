@@ -138,7 +138,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       
       <Content style={{ 
         padding: 0,
-        overflow: 'initial',
+        overflow: 'hidden', /* 禁用全局滚动 */
+        overflowX: 'auto', /* 保留水平滚动 */
         background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%)'
       }}>
         {children}

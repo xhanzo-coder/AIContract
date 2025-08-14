@@ -11,16 +11,20 @@ body {
   background: #f7fafc;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 禁用全局上下滚动 */
+  overflow-y: hidden;
 }
 
 #root {
   min-height: 100vh;
+  /* 禁用全局上下滚动 */
+  overflow-y: hidden;
 }
 
-/* 自定义滚动条 */
+/* 自定义滚动条 - 只保留水平滚动条样式 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 0px; /* 禁用垂直滚动条 */
+  height: 0px; /* 保留水平滚动条 */
 }
 
 ::-webkit-scrollbar-track {
