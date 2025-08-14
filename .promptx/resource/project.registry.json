@@ -4,8 +4,8 @@
   "metadata": {
     "version": "2.0.0",
     "description": "project 级资源注册表",
-    "createdAt": "2025-08-14T07:30:47.417Z",
-    "updatedAt": "2025-08-14T07:30:47.425Z",
+    "createdAt": "2025-08-14T09:53:00.105Z",
+    "updatedAt": "2025-08-14T09:53:00.112Z",
     "resourceCount": 10
   },
   "resources": [
@@ -17,9 +17,9 @@
       "description": "执行模式，定义具体的行为模式",
       "reference": "@project://.promptx/resource/role/frontend-developer/execution/frontend-workflow.execution.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.420Z",
-        "updatedAt": "2025-08-14T07:30:47.420Z",
-        "scannedAt": "2025-08-14T07:30:47.420Z",
+        "createdAt": "2025-08-14T09:53:00.107Z",
+        "updatedAt": "2025-08-14T09:53:00.107Z",
+        "scannedAt": "2025-08-14T09:53:00.107Z",
         "path": "role/frontend-developer/execution/frontend-workflow.execution.md"
       }
     },
@@ -31,9 +31,9 @@
       "description": "专业角色，提供特定领域的专业能力",
       "reference": "@project://.promptx/resource/role/frontend-developer/frontend-developer.role.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.420Z",
-        "updatedAt": "2025-08-14T07:30:47.420Z",
-        "scannedAt": "2025-08-14T07:30:47.420Z",
+        "createdAt": "2025-08-14T09:53:00.107Z",
+        "updatedAt": "2025-08-14T09:53:00.107Z",
+        "scannedAt": "2025-08-14T09:53:00.107Z",
         "path": "role/frontend-developer/frontend-developer.role.md"
       }
     },
@@ -45,9 +45,9 @@
       "description": "思维模式，指导AI的思考方式",
       "reference": "@project://.promptx/resource/role/frontend-developer/thought/frontend-thinking.thought.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.421Z",
-        "updatedAt": "2025-08-14T07:30:47.421Z",
-        "scannedAt": "2025-08-14T07:30:47.421Z",
+        "createdAt": "2025-08-14T09:53:00.108Z",
+        "updatedAt": "2025-08-14T09:53:00.108Z",
+        "scannedAt": "2025-08-14T09:53:00.108Z",
         "path": "role/frontend-developer/thought/frontend-thinking.thought.md"
       }
     },
@@ -59,9 +59,9 @@
       "description": "执行模式，定义具体的行为模式",
       "reference": "@project://.promptx/resource/role/product-manager/execution/product-methodology.execution.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.422Z",
-        "updatedAt": "2025-08-14T07:30:47.422Z",
-        "scannedAt": "2025-08-14T07:30:47.422Z",
+        "createdAt": "2025-08-14T09:53:00.109Z",
+        "updatedAt": "2025-08-14T09:53:00.109Z",
+        "scannedAt": "2025-08-14T09:53:00.109Z",
         "path": "role/product-manager/execution/product-methodology.execution.md"
       }
     },
@@ -73,9 +73,9 @@
       "description": "专业角色，提供特定领域的专业能力",
       "reference": "@project://.promptx/resource/role/product-manager/product-manager.role.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.422Z",
-        "updatedAt": "2025-08-14T07:30:47.422Z",
-        "scannedAt": "2025-08-14T07:30:47.422Z",
+        "createdAt": "2025-08-14T09:53:00.109Z",
+        "updatedAt": "2025-08-14T09:53:00.109Z",
+        "scannedAt": "2025-08-14T09:53:00.109Z",
         "path": "role/product-manager/product-manager.role.md"
       }
     },
@@ -87,9 +87,9 @@
       "description": "专业角色，提供特定领域的专业能力",
       "reference": "@project://.promptx/resource/role/python-backend-developer/python-backend-developer.role.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.423Z",
-        "updatedAt": "2025-08-14T07:30:47.423Z",
-        "scannedAt": "2025-08-14T07:30:47.423Z",
+        "createdAt": "2025-08-14T09:53:00.110Z",
+        "updatedAt": "2025-08-14T09:53:00.110Z",
+        "scannedAt": "2025-08-14T09:53:00.110Z",
         "path": "role/python-backend-developer/python-backend-developer.role.md"
       }
     },
@@ -101,9 +101,9 @@
       "description": "思维模式，指导AI的思考方式",
       "reference": "@project://.promptx/resource/role/python-backend-developer/thought/backend-thinking.thought.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.423Z",
-        "updatedAt": "2025-08-14T07:30:47.423Z",
-        "scannedAt": "2025-08-14T07:30:47.423Z",
+        "createdAt": "2025-08-14T09:53:00.110Z",
+        "updatedAt": "2025-08-14T09:53:00.110Z",
+        "scannedAt": "2025-08-14T09:53:00.110Z",
         "path": "role/python-backend-developer/thought/backend-thinking.thought.md"
       }
     },
@@ -115,9 +115,9 @@
       "description": "执行模式，定义具体的行为模式",
       "reference": "@project://.promptx/resource/role/ui-ux-designer/execution/design-workflow.execution.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.424Z",
-        "updatedAt": "2025-08-14T07:30:47.424Z",
-        "scannedAt": "2025-08-14T07:30:47.424Z",
+        "createdAt": "2025-08-14T09:53:00.111Z",
+        "updatedAt": "2025-08-14T09:53:00.111Z",
+        "scannedAt": "2025-08-14T09:53:00.111Z",
         "path": "role/ui-ux-designer/execution/design-workflow.execution.md"
       }
     },
@@ -129,9 +129,9 @@
       "description": "思维模式，指导AI的思考方式",
       "reference": "@project://.promptx/resource/role/ui-ux-designer/thought/design-thinking.thought.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.424Z",
-        "updatedAt": "2025-08-14T07:30:47.424Z",
-        "scannedAt": "2025-08-14T07:30:47.424Z",
+        "createdAt": "2025-08-14T09:53:00.111Z",
+        "updatedAt": "2025-08-14T09:53:00.111Z",
+        "scannedAt": "2025-08-14T09:53:00.111Z",
         "path": "role/ui-ux-designer/thought/design-thinking.thought.md"
       }
     },
@@ -143,9 +143,9 @@
       "description": "专业角色，提供特定领域的专业能力",
       "reference": "@project://.promptx/resource/role/ui-ux-designer/ui-ux-designer.role.md",
       "metadata": {
-        "createdAt": "2025-08-14T07:30:47.425Z",
-        "updatedAt": "2025-08-14T07:30:47.425Z",
-        "scannedAt": "2025-08-14T07:30:47.425Z",
+        "createdAt": "2025-08-14T09:53:00.111Z",
+        "updatedAt": "2025-08-14T09:53:00.111Z",
+        "scannedAt": "2025-08-14T09:53:00.111Z",
         "path": "role/ui-ux-designer/ui-ux-designer.role.md"
       }
     }

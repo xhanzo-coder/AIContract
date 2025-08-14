@@ -1359,6 +1359,7 @@ const ChatScreen = styled.div`
   flex-direction: column;
   min-height: 0; /* 关键：允许内部可滚动区域正确计算高度 */
   height: 100vh; /* 使用全高，输入区已固定到底部 */
+  overflow: hidden; /* 关键：切断视觉穿透 */
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e0 100%);
   color: #2d3748;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1368,10 +1369,12 @@ const ChatScreen = styled.div`
   
   @media (max-width: 768px) {
     height: 100vh; /* 移动端同样使用全高 */
+    overflow: hidden;
   }
   
   @media (max-width: 480px) {
     height: 100vh;
+    overflow: hidden;
   }
 `;
 
@@ -1467,8 +1470,8 @@ const MessagesArea = styled.div`
   padding: 24px;
   /* 确保对话记录区域可以滚动，占据剩余空间 */
   min-height: 0;
-  /* 为固定在底部的输入区留出空间，避免内容被遮挡 */
-  padding-bottom: 120px;
+  /* 为固定在底部的输入区留出空间，避免内容被遮挡。通过内边距直接遮住底部区域 */
+  padding-bottom: 140px;
   /* 阻止滚动事件冒泡到父容器 */
   overscroll-behavior: contain;
   
@@ -2028,6 +2031,8 @@ const InputArea = styled.div`
     display: flex;
     gap: 8px;
     align-items: flex-end;
+    position: relative;
+    z-index: 1;
     background: rgba(255, 255, 255, 0.95); /* 更接近纯白 */
     border-radius: 28px; /* 胶囊形大圆角 */
     padding: 10px 12px; /* 提高整体高度 */
